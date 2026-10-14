@@ -28,7 +28,7 @@ button,select,input{font:inherit;color:inherit}
 
 /* Top bar */
 .topbar{background:var(--ink);color:#fff}
-.topbar .wrap{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;padding-top:22px;padding-bottom:22px}
+.topbar .wrap.head{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;padding-top:22px;padding-bottom:10px}
 .topbar h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em}
 .topbar p{margin:2px 0 0;color:#B7C5D8;font-size:14px}
 .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
@@ -37,6 +37,10 @@ button,select,input{font:inherit;color:inherit}
 .btn:hover{background:rgba(255,255,255,.1)}
 .btn.primary{background:#fff;color:var(--ink);border-color:#fff}
 .btn.primary:hover{background:#E8EEF6}
+.tabs{display:flex;gap:4px;overflow-x:auto}
+.tabs a{color:#B7C5D8;text-decoration:none;padding:12px 16px;border-bottom:3px solid transparent;font-weight:500;font-size:14.5px;white-space:nowrap}
+.tabs a:hover{color:#fff}
+.tabs a[aria-current="page"]{color:#fff;border-bottom-color:#fff}
 
 /* Health band */
 .health{background:var(--surface);border-bottom:1px solid var(--line)}
@@ -163,7 +167,7 @@ footer a{color:var(--brand)}
 @media print{
   .topbar{background:#fff;color:#000;border-bottom:2px solid #000}
   .topbar p,.stamp{color:#444}
-  .actions,.tools,.overlay{display:none!important}
+  .actions,.tabs,.tools,.overlay{display:none!important}
   body{background:#fff}
   .card,.attn button,.tl-item{break-inside:avoid}
 }
@@ -172,7 +176,7 @@ footer a{color:var(--brand)}
 <body>
 
 <header class="topbar">
-  <div class="wrap">
+  <div class="wrap head">
     <div>
       <h1>Project Progress Dashboard</h1>
       <p>Open Platform System – Redajaya &amp; Qinetics</p>
@@ -182,6 +186,12 @@ footer a{color:var(--brand)}
       <button class="btn" id="refresh" type="button">Refresh data</button>
       <button class="btn primary" id="print" type="button">Print report</button>
     </div>
+  </div>
+  <div class="wrap">
+    <nav class="tabs" aria-label="Pages">
+      <a href="index.html" aria-current="page">Project progress</a>
+      <a href="contracts.html">Contracts and claims</a>
+    </nav>
   </div>
 </header>
 

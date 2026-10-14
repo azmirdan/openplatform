@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contracts and Claims – Open Platform System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+<style>
+:root{
+  --ink:#12263F; --ink-soft:#4A5B70; --muted:#7A889A;
+  --paper:#F3F5F8; --surface:#FFFFFF; --line:#DDE3EA; --line-soft:#EBEFF4;
+  --brand:#1F5FBF; --brand-soft:#E8F0FB;
+  --done:#1E8E5A; --done-soft:#E3F4EB;
+  --prog:#B96A00; --prog-soft:#FFF1DB;
+  --pend:#64748B; --pend-soft:#EAEEF3;
+  --late:#B42318; --late-soft:#FDE8E6;
+  --radius:8px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:15px;line-height:1.5}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+
+/* Top bar and tabs */
+.topbar{background:var(--ink);color:#fff}
+.topbar .wrap.head{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;padding-top:22px;padding-bottom:10px}
+.topbar h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em}
+.topbar p{margin:2px 0 0;color:#B7C5D8;font-size:14px}
+.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.stamp{color:#B7C5D8;font-size:13px}
+.btn{border:1px solid rgba(255,255,255,.35);background:transparent;color:#fff;border-radius:6px;padding:8px 14px;cursor:pointer;font-weight:500;font-size:14px}
+.btn:hover{background:rgba(255,255,255,.1)}
+.btn.primary{background:#fff;color:var(--ink);border-color:#fff}
+.btn.primary:hover{background:#E8EEF6}
+.tabs{display:flex;gap:4px;overflow-x:auto}
+.tabs a{color:#B7C5D8;text-decoration:none;padding:12px 16px;border-bottom:3px solid transparent;font-weight:500;font-size:14.5px;white-space:nowrap}
+.tabs a:hover{color:#fff}
+.tabs a[aria-current="page"]{color:#fff;border-bottom-color:#fff}
+
+/* Summary band */
+.health{background:var(--surface);border-bottom:1px solid var(--line)}
+.health .wrap{display:grid;grid-template-columns:auto 1fr;gap:40px;align-items:center;padding-top:28px;padding-bottom:28px}
+.big .lbl{color:var(--ink-soft);font-size:14px}
+.big .num{font-size:46px;font-weight:700;line-height:1.1;letter-spacing:-.02em;margin-top:2px}
+.big .num small{font-size:20px;font-weight:600;color:var(--ink-soft);margin-right:6px;letter-spacing:0}
+.util h2{margin:0 0 2px}
+.bar{display:flex;height:16px;border-radius:4px;overflow:hidden;background:var(--pend-soft);margin-top:10px}
+.bar span{display:block;height:100%;transition:width .5s ease}
+.bar .b-used{background:var(--brand)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 28px;margin-top:14px}
+.legend div{display:flex;align-items:center;gap:8px;color:var(--ink-soft);font-size:14px}
+.legend b{color:var(--ink);font-weight:600;font-size:18px}
+.dot{width:10px;height:10px;border-radius:2px;display:inline-block}
+
+/* Sections */
+main{padding:28px 0 56px}
+section{margin-bottom:34px}
+h2{font-size:17px;font-weight:600;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13.5px;margin:0 0 14px}
+
+/* Contract orders */
+.cos{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+.co{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--done);border-radius:var(--radius);padding:16px}
+.co.soon{border-left-color:var(--prog)} .co.expired{border-left-color:var(--late)}
+.co .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.co .name{font-weight:600;font-size:15px;line-height:1.35}
+.co .code{display:inline-block;margin-top:4px;border-radius:4px;padding:2px 8px;font-size:12.5px;font-weight:500;background:var(--brand-soft);color:var(--brand)}
+.badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:12.5px;font-weight:600;white-space:nowrap}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.s-done{background:var(--done-soft);color:var(--done)}
+.s-prog{background:var(--prog-soft);color:var(--prog)}
+.s-late{background:var(--late-soft);color:var(--late)}
+.track{position:relative;height:8px;border-radius:4px;background:var(--pend-soft);margin:18px 0 8px;overflow:hidden}
+.track i{display:block;height:100%;background:var(--done);border-radius:4px}
+.co.soon .track i{background:var(--prog)} .co.expired .track i{background:var(--late)}
+.dates{display:flex;justify-content:space-between;color:var(--ink-soft);font-size:13px;gap:10px}
+.dates b{display:block;color:var(--ink);font-weight:500;font-size:13.5px}
+.dates div:last-child{text-align:right}
+.left{margin-top:12px;font-size:13.5px;color:var(--ink-soft)}
+.left strong{color:var(--ink);font-size:15px}
+
+/* Claim statements */
+.stm{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px 8px;overflow-x:auto}
+.panel h3{margin:0 0 8px;font-size:15.5px;font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:14.5px}
+th{font-weight:500;color:var(--muted);font-size:13px;text-align:right;padding:6px 0;border-bottom:1px solid var(--line)}
+th:first-child{text-align:left}
+td{padding:9px 0;border-bottom:1px solid var(--line-soft);text-align:right;font-variant-numeric:tabular-nums}
+td:first-child{text-align:left;padding-right:12px}
+td small{display:block;color:var(--muted);font-size:12.5px}
+tr.total td{font-weight:600;border-top:1px solid var(--line);border-bottom:0;padding-top:12px;padding-bottom:12px}
+.rates{display:flex;gap:24px;flex-wrap:wrap;color:var(--ink-soft);font-size:13.5px;margin-bottom:6px}
+.rates b{color:var(--ink);font-weight:600}
+
+/* States */
+.state{background:var(--surface);border:1px dashed #B8C3D1;border-radius:var(--radius);padding:28px;text-align:center;color:var(--ink-soft)}
+.state a{color:var(--brand)}
+.skeleton{height:120px;border-radius:var(--radius);background:linear-gradient(90deg,#E8ECF1 25%,#F3F5F8 50%,#E8ECF1 75%);background-size:200% 100%;animation:sh 1.3s infinite}
+@keyframes sh{to{background-position:-200% 0}}
+
+footer{color:var(--muted);font-size:13px;text-align:center;padding:0 20px 36px}
+footer a{color:var(--brand)}
+
+@media (max-width:760px){
+  .health .wrap{grid-template-columns:1fr;gap:20px}
+  .big .num{font-size:38px}
+  .cos,.stm{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media print{
+  .topbar{background:#fff;color:#000;border-bottom:2px solid #000}
+  .topbar p,.stamp{color:#444}
+  .actions,.tabs{display:none!important}
+  body{background:#fff}
+  .co,.panel{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap head">
+    <div>
+      <h1>Contracts and Claims</h1>
+      <p>Open Platform System – Redajaya &amp; Qinetics</p>
+    </div>
+    <div class="actions">
+      <span class="stamp" id="stamp">Loading data…</span>
+      <button class="btn" id="refresh" type="button">Refresh data</button>
+      <button class="btn primary" id="print" type="button">Print report</button>
+    </div>
+  </div>
+  <div class="wrap">
+    <nav class="tabs" aria-label="Pages">
+      <a href="index.html">Project progress</a>
+      <a href="contracts.html" aria-current="page">Contracts and claims</a>
+    </nav>
+  </div>
+</header>
+
+<div class="health">
+  <div class="wrap">
+    <div class="big">
+      <div class="lbl">Total claim (mandays plus PM and CM)</div>
+      <div class="num" id="grand">–</div>
+    </div>
+    <div class="util" id="util"><div class="skeleton" style="height:70px"></div></div>
+  </div>
+</div>
+
+<main class="wrap">
+
+  <section>
+    <h2>Contract orders</h2>
+    <p class="sub" id="co-sub">Each bar shows how much of the contract period has passed.</p>
+    <div class="cos" id="cos"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+  </section>
+
+  <section>
+    <h2>Claim statements</h2>
+    <p class="sub">Amounts in Ringgit Malaysia (RM).</p>
+    <div class="stm" id="stm"><div class="skeleton"></div><div class="skeleton"></div></div>
+  </section>
+
+</main>
+
+<footer>Data comes live from the <a id="sheet-link" href="#" target="_blank" rel="noopener">project tracker sheet</a> (Reminder and Total Tuntutan tabs).</footer>
+
+<script>
+/* ===== Settings ===== */
+const SHEET_ID   = '151RW-bwF3AYuusSUTGB-6bOd-qnhyIQSAvZnJjXuW20';
+const REFRESH_MS = 5 * 60 * 1000;
+const tabUrl     = name => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}&_=${Date.now()}`;
+const SHEET_LINK = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
+const SOON_DAYS  = 14;   // contracts ending within this many days show as "Expiring soon"
+
+/* ===== Helpers ===== */
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = s => { const v = parseFloat(String(s || '').replace(/[^0-9.\-]/g, '')); return isNaN(v) ? null : v; };
+const MONTHS = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+
+function parseDate(s){
+  const m = String(s || '').match(/(\d{1,2})[\/\- ]([A-Za-z]{3,}|\d{1,2})[\/\- ](\d{2,4})/);
+  if(!m) return null;
+  let y = +m[3]; if(y < 100) y += 2000;
+  const mon = isNaN(m[2]) ? MONTHS[m[2].slice(0,3).toLowerCase()] : +m[2] - 1;
+  return mon == null ? null : new Date(y, mon, +m[1]);
+}
+const fmtDate = d => d ? d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '–';
+const fmtRM = v => 'RM ' + v.toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const fetchTab = name => new Promise((res, rej) => Papa.parse(tabUrl(name), {download:true, skipEmptyLines:false, complete:r => res(r.data), error:rej}));
+
+/* ===== Contract orders (Reminder tab) ===== */
+function buildContracts(rows){
+  const hi = rows.findIndex(r => r.some(c => /expiry/i.test(c || '')));
+  if(hi < 0) throw new Error('Could not find the contract table in the Reminder tab.');
+  const head = rows[hi].map(c => String(c || '').trim());
+  const idx = re => head.findIndex(h => re.test(h));
+  const C = {no:idx(/^no$/i), code:idx(/^co$/i), desc:idx(/desc/i), start:idx(/co date/i), end:idx(/expiry/i)};
+  const today = new Date(); today.setHours(0,0,0,0);
+  const out = [];
+  rows.slice(hi + 1).forEach(r => {
+    const end = parseDate(r[C.end]); if(!end) return;
+    const start = parseDate(r[C.start]);
+    const left = Math.round((end - today) / 86400000);
+    const pct = start && end > start ? Math.max(0, Math.min(100, (today - start) / (end - start) * 100)) : 100;
+    out.push({code:(r[C.code] || '').trim(), desc:(r[C.desc] || '').trim(), start, end, left, pct,
+              kind: left < 0 ? 'expired' : left <= SOON_DAYS ? 'soon' : 'active'});
+  });
+  return out;
+}
+
+function renderContracts(list){
+  const n = k => list.filter(x => x.kind === k).length;
+  $('co-sub').textContent = `${n('active')} active, ${n('soon')} expiring soon, ${n('expired')} expired. Each bar shows how much of the contract period has passed.`;
+  if(!list.length){ $('cos').innerHTML = '<div class="state" style="grid-column:1/-1">No contract orders found in the Reminder tab.</div>'; return; }
+  const label = {
+    active: x => ['s-done', 'Active', `<strong>${plural(x.left, 'day')}</strong> remaining`],
+    soon:   x => ['s-prog', 'Expiring soon', x.left === 0 ? '<strong>Expires today</strong>' : `<strong>${plural(x.left, 'day')}</strong> remaining`],
+    expired:x => ['s-late', 'Expired', `Expired <strong>${plural(-x.left, 'day')}</strong> ago`]
+  };
+  $('cos').innerHTML = list.map(x => {
+    const [cls, text, left] = label[x.kind](x);
+    return `<article class="co ${x.kind}">
+      <div class="top"><div><div class="name">${esc(x.desc || x.code)}</div>${x.code ? `<span class="code">${esc(x.code)}</span>` : ''}</div><span class="badge ${cls}">${text}</span></div>
+      <div class="track" role="img" aria-label="${Math.round(x.pct)}% of the contract period has passed"><i style="width:${x.pct}%"></i></div>
+      <div class="dates"><div>Starts<b>${fmtDate(x.start)}</b></div><div>Ends<b>${fmtDate(x.end)}</b></div></div>
+      <div class="left">${left}</div>
+    </article>`;
+  }).join('');
+}
+
+/* ===== Claims (Total Tuntutan tab) ===== */
+function buildClaims(rows){
+  const blocks = []; let cur = null;
+  const flush = () => { if(cur && (cur.rows.length || cur.params.length)) blocks.push(cur); cur = null; };
+  rows.forEach(r => {
+    const cell = i => String(r[i] || '').trim();
+    const label = cell(3), q = cell(4), a = cell(5), note = cell(6);
+    if(!r.some(c => String(c || '').trim())){ flush(); return; }
+    if(!cur) cur = {title:'', params:[], rows:[], qtyLabel:'', amtLabel:''};
+    if(!label){ if(q || a){ cur.qtyLabel = q; cur.amtLabel = a; } return; }
+    if(!q && !a){ if(!cur.title && !cur.rows.length) cur.title = label; else cur.rows.push({label, note}); return; }
+    if(q && !a && num(q) != null && !cur.rows.length){ cur.params.push({label, value:num(q)}); return; }
+    cur.rows.push({label, qty:q, amt:a, note, total:/^(total|baki|jumlah)/i.test(label)});
+  });
+  flush();
+  return blocks;
+}
+
+function renderClaims(blocks){
+  const all = blocks.flatMap(b => b.rows);
+  const params = blocks.flatMap(b => b.params);
+  const grand = all.find(r => /total claim/i.test(r.label));
+  $('grand').innerHTML = grand ? `<small>RM</small>${esc(grand.amt)}` : '–';
+
+  // Mandays utilisation
+  const total = (params.find(p => /unit mandays|jumlah mandays/i.test(p.label)) || {}).value;
+  const rate  = (params.find(p => /per unit/i.test(p.label)) || {}).value;
+  const used  = num((all.find(r => /^total mandays/i.test(r.label)) || {}).qty);
+  const baki  = num((all.find(r => /^baki/i.test(r.label)) || {}).qty);
+  if(total && used != null){
+    const pct = Math.min(100, used / total * 100);
+    $('util').innerHTML = `
+      <h2>Mandays used</h2>
+      <p class="sub" style="margin:0">${Math.round(pct)}% of the contracted mandays have been claimed.</p>
+      <div class="bar" role="img" aria-label="${used} of ${total} mandays used"><span class="b-used" style="width:${pct}%"></span></div>
+      <div class="legend">
+        <div><span class="dot" style="background:var(--brand)"></span><b>${used}</b> used</div>
+        <div><span class="dot" style="background:#B8C3D1"></span><b>${baki != null ? baki : total - used}</b> remaining</div>
+        <div><span class="dot" style="background:var(--ink)"></span><b>${total}</b> contracted</div>
+        ${rate ? `<div>Rate: <b>RM ${rate.toLocaleString('en-MY')}</b> per manday</div>` : ''}
+      </div>`;
+  } else { $('util').innerHTML = ''; }
+
+  // Statement tables (skip the grand total and "baki" blocks; they appear above)
+  const shown = blocks.filter(b => b.rows.length && !b.rows.every(r => /total claim|^baki/i.test(r.label)));
+  if(!shown.length){ $('stm').innerHTML = '<div class="state" style="grid-column:1/-1">No claim data found in the Total Tuntutan tab.</div>'; return; }
+  $('stm').innerHTML = shown.map(b => {
+    const rows = b.rows.filter(r => !/total claim|^baki/i.test(r.label));
+    const hasQty = rows.some(r => r.qty);
+    const rates = b.params.length ? `<div class="rates">${b.params.map(p => `<span>${esc(p.label)}: <b>${p.value.toLocaleString('en-MY')}</b></span>`).join('')}</div>` : '';
+    return `<div class="panel">
+      <h3>${esc(b.title || 'Additional claims')}</h3>${rates}
+      <table>
+        <thead><tr><th>Item</th>${hasQty ? `<th>${esc(b.qtyLabel || 'Qty')}</th>` : ''}<th>${esc(b.amtLabel || 'Amount (RM)')}</th></tr></thead>
+        <tbody>${rows.map(r => `<tr class="${r.total ? 'total' : ''}"><td>${esc(r.label)}${r.note ? `<small>${esc(r.note)}</small>` : ''}</td>${hasQty ? `<td>${esc(r.qty || '')}</td>` : ''}<td>${esc(r.amt || '')}</td></tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+  }).join('');
+}
+
+/* ===== Load ===== */
+function showError(el, msg){
+  el.innerHTML = `<div class="state" style="grid-column:1/-1"><b>${esc(msg)}</b><br>Check that the sheet is shared as "Anyone with the link can view", then
+    <a href="#" onclick="load();return false">try again</a> or <a href="${SHEET_LINK}" target="_blank" rel="noopener">open the sheet</a>.</div>`;
+}
+
+async function load(){
+  $('stamp').textContent = 'Updating…';
+  const [co, cl] = await Promise.allSettled([fetchTab('Reminder'), fetchTab('Total Tuntutan')]);
+  let ok = true;
+  try { if(co.status !== 'fulfilled') throw new Error('The Reminder tab could not be reached.'); renderContracts(buildContracts(co.value)); }
+  catch(e){ ok = false; showError($('cos'), e.message); }
+  try { if(cl.status !== 'fulfilled') throw new Error('The Total Tuntutan tab could not be reached.'); renderClaims(buildClaims(cl.value)); }
+  catch(e){ ok = false; showError($('stm'), e.message); $('util').innerHTML = ''; }
+  $('stamp').textContent = ok ? 'Updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : 'Update failed';
+}
+
+$('sheet-link').href = SHEET_LINK;
+$('refresh').onclick = load;
+$('print').onclick = () => window.print();
+load();
+setInterval(load, REFRESH_MS);
+</script>
+</body>
+</html>
