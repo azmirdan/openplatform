@@ -1,161 +1,530 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Open Platform System - Project Progress Dashboard</title>
-    <!-- Tailwind CSS for Styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chart.js for Visualizations -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- PapaParse to parse Google Sheets CSV -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project Progress Dashboard – Open Platform System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+<style>
+:root{
+  --ink:#12263F; --ink-soft:#4A5B70; --muted:#7A889A;
+  --paper:#F3F5F8; --surface:#FFFFFF; --line:#DDE3EA; --line-soft:#EBEFF4;
+  --brand:#1F5FBF; --brand-soft:#E8F0FB;
+  --done:#1E8E5A; --done-soft:#E3F4EB;
+  --prog:#B96A00; --prog-soft:#FFF1DB;
+  --pend:#64748B; --pend-soft:#EAEEF3;
+  --late:#B42318; --late-soft:#FDE8E6;
+  --radius:8px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:15px;line-height:1.5}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+
+/* Top bar */
+.topbar{background:var(--ink);color:#fff}
+.topbar .wrap{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;padding-top:22px;padding-bottom:22px}
+.topbar h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em}
+.topbar p{margin:2px 0 0;color:#B7C5D8;font-size:14px}
+.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.stamp{color:#B7C5D8;font-size:13px}
+.btn{border:1px solid rgba(255,255,255,.35);background:transparent;color:#fff;border-radius:6px;padding:8px 14px;cursor:pointer;font-weight:500;font-size:14px}
+.btn:hover{background:rgba(255,255,255,.1)}
+.btn.primary{background:#fff;color:var(--ink);border-color:#fff}
+.btn.primary:hover{background:#E8EEF6}
+
+/* Health band */
+.health{background:var(--surface);border-bottom:1px solid var(--line)}
+.health .wrap{display:grid;grid-template-columns:auto 1fr;gap:32px;align-items:center;padding-top:28px;padding-bottom:28px}
+.big{display:flex;align-items:baseline;gap:10px}
+.big .num{font-size:64px;font-weight:700;line-height:1;letter-spacing:-.03em;color:var(--ink)}
+.big .lbl{color:var(--ink-soft);font-size:14px;max-width:110px;line-height:1.3}
+.bar{display:flex;height:16px;border-radius:4px;overflow:hidden;background:var(--pend-soft)}
+.bar span{display:block;height:100%;transition:width .5s ease}
+.bar .b-done{background:var(--done)} .bar .b-prog{background:var(--prog)} .bar .b-pend{background:#B8C3D1}
+.legend{display:flex;flex-wrap:wrap;gap:8px 28px;margin-top:14px}
+.legend div{display:flex;align-items:center;gap:8px;color:var(--ink-soft);font-size:14px}
+.legend b{color:var(--ink);font-weight:600;font-size:18px;margin-right:2px}
+.dot{width:10px;height:10px;border-radius:2px;display:inline-block}
+
+/* Sections */
+main{padding:28px 0 56px}
+section{margin-bottom:34px}
+h2{font-size:17px;font-weight:600;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13.5px;margin:0 0 14px}
+
+/* Attention */
+.attn{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.attn button{all:unset;box-sizing:border-box;cursor:pointer;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--prog);border-radius:4px;padding:12px 14px;display:block}
+.attn button.late{border-left-color:var(--late)}
+.attn button:hover{border-color:#C5CFDB;border-left-color:inherit}
+.attn button:focus-visible{outline:2px solid var(--brand)}
+.attn .t{font-weight:600;font-size:14.5px;line-height:1.35}
+.attn .m{color:var(--muted);font-size:13px;margin-top:4px}
+.attn .n{color:var(--ink-soft);font-size:13px;margin-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.allclear{background:var(--done-soft);color:var(--done);border-radius:var(--radius);padding:14px 16px;font-weight:500}
+
+/* Category progress */
+.cats{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+.cat{padding:16px 18px;border-right:1px solid var(--line-soft)}
+.cat:last-child{border-right:0}
+.cat .h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.cat .name{font-weight:600}
+.cat .frac{color:var(--ink-soft);font-size:13.5px}
+.cat .track{height:6px;border-radius:3px;background:var(--pend-soft);margin-top:10px;overflow:hidden}
+.cat .track i{display:block;height:100%;background:var(--brand);border-radius:3px}
+.cat .desc{color:var(--muted);font-size:12.5px;margin-top:6px}
+
+/* Toolbar */
+.tools{position:sticky;top:0;z-index:5;background:var(--paper);padding:10px 0 12px;border-bottom:1px solid var(--line);margin-bottom:16px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.search{flex:1 1 220px;min-width:180px;padding:9px 12px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+select{padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 13px;cursor:pointer;font-size:13.5px;color:var(--ink-soft)}
+.chip:hover{border-color:#B8C3D1}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface);margin-left:auto}
+.seg button{border:0;background:transparent;padding:8px 14px;cursor:pointer;font-size:13.5px;color:var(--ink-soft)}
+.seg button[aria-pressed="true"]{background:var(--brand-soft);color:var(--brand);font-weight:600}
+.count{color:var(--muted);font-size:13.5px;margin:0 0 12px}
+
+/* Task cards */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+.card{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+.card:hover{border-color:#B8C3D1}
+.card:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.card .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.card .no{color:var(--muted);font-size:13px;white-space:nowrap}
+.card .title{font-weight:600;font-size:15px;line-height:1.35}
+.badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:12.5px;font-weight:600;white-space:nowrap}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.s-done{background:var(--done-soft);color:var(--done)}
+.s-prog{background:var(--prog-soft);color:var(--prog)}
+.s-pend{background:var(--pend-soft);color:var(--pend)}
+.tag{display:inline-block;border-radius:4px;padding:2px 8px;font-size:12.5px;background:var(--brand-soft);color:var(--brand);font-weight:500}
+.tag.late{background:var(--late-soft);color:var(--late)}
+.tag.prio{background:#F3E8FD;color:#6B21A8}
+.meta{display:flex;flex-wrap:wrap;gap:6px 14px;color:var(--ink-soft);font-size:13.5px}
+.latest{color:var(--ink-soft);font-size:13.5px;border-top:1px solid var(--line-soft);padding-top:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pbar{height:6px;border-radius:3px;background:var(--pend-soft);overflow:hidden}
+.pbar i{display:block;height:100%;background:var(--prog)}
+.pline{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-soft)}
+.pline .pbar{flex:1}
+
+/* Timeline */
+.timeline{position:relative;margin-left:8px;padding-left:26px;border-left:2px solid var(--line)}
+.tl-day{position:relative;margin-bottom:22px}
+.tl-day::before{content:"";position:absolute;left:-34px;top:3px;width:12px;height:12px;border-radius:50%;background:var(--brand);border:3px solid var(--paper);box-sizing:content-box}
+.tl-day h3{margin:0 0 8px;font-size:14.5px;font-weight:600}
+.tl-item{all:unset;box-sizing:border-box;display:flex;gap:10px;align-items:center;justify-content:space-between;width:100%;cursor:pointer;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px 14px;margin-bottom:8px}
+.tl-item:hover{border-color:#B8C3D1}
+.tl-item:focus-visible{outline:2px solid var(--brand)}
+.tl-item .l{min-width:0}
+.tl-item .t{font-weight:500;font-size:14.5px}
+.tl-item .m{color:var(--muted);font-size:13px}
+
+/* States */
+.state{background:var(--surface);border:1px dashed #B8C3D1;border-radius:var(--radius);padding:28px;text-align:center;color:var(--ink-soft)}
+.state a{color:var(--brand)}
+.skeleton{height:120px;border-radius:var(--radius);background:linear-gradient(90deg,#E8ECF1 25%,#F3F5F8 50%,#E8ECF1 75%);background-size:200% 100%;animation:sh 1.3s infinite}
+@keyframes sh{to{background-position:-200% 0}}
+
+/* Detail drawer */
+.overlay{position:fixed;inset:0;background:rgba(18,38,63,.45);display:none;z-index:20;justify-content:flex-end}
+.overlay.open{display:flex}
+.drawer{background:var(--surface);width:min(520px,100%);height:100%;overflow:auto;padding:24px;animation:slide .22s ease}
+@keyframes slide{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+.drawer .x{float:right;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:6px 12px;cursor:pointer}
+.drawer h3{margin:8px 0 10px;font-size:20px;line-height:1.3;font-weight:600;padding-right:70px}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:8px 12px;margin:16px 0;font-size:14px}
+.kv dt{color:var(--muted)} .kv dd{margin:0}
+.note{border-left:3px solid var(--line);padding:2px 0 2px 14px;margin:14px 0}
+.note h4{margin:0 0 4px;font-size:13px;font-weight:600;color:var(--ink-soft)}
+.note p{margin:0;white-space:pre-line;font-size:14px}
+
+footer{color:var(--muted);font-size:13px;text-align:center;padding:0 20px 36px}
+footer a{color:var(--brand)}
+
+@media (max-width:760px){
+  .health .wrap{grid-template-columns:1fr;gap:18px}
+  .big .num{font-size:52px}
+  .seg{margin-left:0}
+  .grid{grid-template-columns:1fr}
+  .cat{border-right:0;border-bottom:1px solid var(--line-soft)}
+  .cat:last-child{border-bottom:0}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media print{
+  .topbar{background:#fff;color:#000;border-bottom:2px solid #000}
+  .topbar p,.stamp{color:#444}
+  .actions,.tools,.overlay{display:none!important}
+  body{background:#fff}
+  .card,.attn button,.tl-item{break-inside:avoid}
+}
+</style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen font-sans p-6">
+<body>
 
-    <div class="max-w-7xl mx-auto space-y-6">
-        <!-- Header -->
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
-            <div>
-                <h1 class="text-2xl font-bold text-white">Project Progress Dashboard</h1>
-                <p class="text-slate-400 text-sm mt-1">Open Platform System (Redajaya & Qinetics)</p>
-            </div>
-            <div class="mt-4 md:mt-0 flex items-center gap-3">
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    ● Live Sync Active
-                </span>
-                <button onclick="loadDashboardData()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition shadow">
-                    Refresh Data
-                </button>
-            </div>
-        </div>
-
-        <!-- Metric KPI Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div class="bg-slate-800 p-5 rounded-xl border border-slate-700">
-                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Tasks / Milestones</p>
-                <h3 id="total-tasks" class="text-3xl font-extrabold text-white mt-2">--</h3>
-            </div>
-            <div class="bg-slate-800 p-5 rounded-xl border border-slate-700">
-                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Completed</p>
-                <h3 id="completed-tasks" class="text-3xl font-extrabold text-emerald-400 mt-2">--</h3>
-            </div>
-            <div class="bg-slate-800 p-5 rounded-xl border border-slate-700">
-                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">In Progress</p>
-                <h3 id="in-progress-tasks" class="text-3xl font-extrabold text-amber-400 mt-2">--</h3>
-            </div>
-            <div class="bg-slate-800 p-5 rounded-xl border border-slate-700">
-                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Overall Completion</p>
-                <h3 id="overall-progress" class="text-3xl font-extrabold text-blue-400 mt-2">0%</h3>
-            </div>
-        </div>
-
-        <!-- Embedded Interactive Sheet & Chart View -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Summary Chart -->
-            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 flex flex-col items-center justify-center">
-                <h2 class="text-lg font-bold text-white mb-4 self-start">Status Breakdown</h2>
-                <div class="w-64 h-64">
-                    <canvas id="statusChart"></canvas>
-                </div>
-            </div>
-
-            <!-- Embedded Live Google Sheet View -->
-            <div class="lg:col-span-2 bg-slate-800 p-6 rounded-xl border border-slate-700 flex flex-col">
-                <h2 class="text-lg font-bold text-white mb-4">Live Tracker Sheet</h2>
-                <div class="w-full flex-grow overflow-hidden rounded-lg border border-slate-700 h-[400px]">
-                    <iframe 
-                        class="w-full h-full border-0"
-                        src="https://docs.google.com/spreadsheets/d/e/2PACX-1vR_PUBLISHED_KEY/pubhtml?widget=true&amp;headers=false">
-                    </iframe>
-                </div>
-            </div>
-        </div>
+<header class="topbar">
+  <div class="wrap">
+    <div>
+      <h1>Project Progress Dashboard</h1>
+      <p>Open Platform System – Redajaya &amp; Qinetics</p>
     </div>
+    <div class="actions">
+      <span class="stamp" id="stamp">Loading data…</span>
+      <button class="btn" id="refresh" type="button">Refresh data</button>
+      <button class="btn primary" id="print" type="button">Print report</button>
+    </div>
+  </div>
+</header>
 
-    <script>
-        // REPLACE THIS WITH YOUR PUBLISHED CSV URL FROM GOOGLE SHEETS
-        const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1v.../pub?gid=0&single=true&output=csv';
+<div class="health">
+  <div class="wrap">
+    <div class="big"><span class="num" id="pct">–</span><span class="lbl">of tasks completed</span></div>
+    <div>
+      <div class="bar" role="img" aria-label="Status breakdown" id="bar"><span class="b-done" style="width:0"></span><span class="b-prog" style="width:0"></span><span class="b-pend" style="width:0"></span></div>
+      <div class="legend">
+        <div><span class="dot" style="background:var(--ink)"></span><b id="k-total">–</b> total tasks</div>
+        <div><span class="dot" style="background:var(--done)"></span><b id="k-done">–</b> completed</div>
+        <div><span class="dot" style="background:var(--prog)"></span><b id="k-prog">–</b> in progress</div>
+        <div><span class="dot" style="background:#B8C3D1"></span><b id="k-pend">–</b> pending</div>
+      </div>
+    </div>
+  </div>
+</div>
 
-        let chartInstance = null;
+<main class="wrap">
 
-        function loadDashboardData() {
-            Papa.parse(SHEET_CSV_URL, {
-                download: true,
-                header: true,
-                complete: function(results) {
-                    processTrackerData(results.data);
-                },
-                error: function(err) {
-                    console.log("Error loading sheet CSV:", err);
-                }
-            });
-        }
+  <section id="attn-sec">
+    <h2>Needs attention</h2>
+    <p class="sub">Open items that are still in progress or past their due date. Select one to see the full notes.</p>
+    <div class="attn" id="attn"><div class="skeleton"></div></div>
+  </section>
 
-        function processTrackerData(data) {
-            let total = 0;
-            let completed = 0;
-            let inProgress = 0;
-            let pending = 0;
+  <section>
+    <h2>Progress by category</h2>
+    <p class="sub">How much work is done in each area.</p>
+    <div class="cats" id="cats"><div class="skeleton" style="grid-column:1/-1"></div></div>
+  </section>
 
-            data.forEach(row => {
-                // Find status column dynamically
-                const status = (row['Status'] || row['STATUS'] || '').trim().toLowerCase();
-                if (status) {
-                    total++;
-                    if (status.includes('complete') || status.includes('done') || status.includes('seledai')) {
-                        completed++;
-                    } else if (status.includes('progress') || status.includes('dalam proses')) {
-                        inProgress++;
-                    } else {
-                        pending++;
-                    }
-                }
-            });
+  <section>
+    <h2>All tasks</h2>
+    <div class="tools">
+      <div class="row">
+        <input class="search" id="q" type="search" placeholder="Search tasks, owners or notes" aria-label="Search tasks">
+        <select id="owner" aria-label="Filter by owner"><option value="all">All owners</option></select>
+        <div class="seg" role="group" aria-label="View">
+          <button type="button" id="v-cards" aria-pressed="true">Cards</button>
+          <button type="button" id="v-time" aria-pressed="false">Timeline</button>
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <div class="chips" id="f-status" role="group" aria-label="Filter by status"></div>
+        <div class="chips" id="f-cat" role="group" aria-label="Filter by category"></div>
+      </div>
+    </div>
+    <p class="count" id="count"></p>
+    <div id="list"><div class="grid"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div></div>
+  </section>
 
-            // Update KPIs
-            document.getElementById('total-tasks').innerText = total || '--';
-            document.getElementById('completed-tasks').innerText = completed;
-            document.getElementById('in-progress-tasks').innerText = inProgress;
-            
-            const progressPct = total > 0 ? Math.round((completed / total) * 100) : 0;
-            document.getElementById('overall-progress').innerText = `${progressPct}%`;
+</main>
 
-            renderChart(completed, inProgress, pending);
-        }
+<footer>Data comes live from the <a id="sheet-link" href="#" target="_blank" rel="noopener">project tracker sheet</a>. Update the sheet and this page follows.</footer>
 
-        function renderChart(completed, inProgress, pending) {
-            const ctx = document.getElementById('statusChart').getContext('2d');
-            
-            if (chartInstance) {
-                chartInstance.destroy();
-            }
+<div class="overlay" id="overlay" aria-hidden="true">
+  <div class="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title" id="drawer"></div>
+</div>
 
-            chartInstance = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Completed', 'In Progress', 'Pending'],
-                    datasets: [{
-                        data: [completed, inProgress, pending],
-                        backgroundColor: ['#10B981', '#F59E0B', '#64748B'],
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: { color: '#94A3B8' }
-                        }
-                    }
-                }
-            });
-        }
+<script>
+/* ===== Settings ===== */
+const SHEET_ID   = '151RW-bwF3AYuusSUTGB-6bOd-qnhyIQSAvZnJjXuW20';
+const SHEET_NAME = 'Project Tracker';
+const REFRESH_MS = 5 * 60 * 1000;   // auto refresh every 5 minutes
+const CSV_URL    = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_NAME)}`;
+const SHEET_LINK = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
 
-        // Initial Load
-        window.onload = loadDashboardData;
-    </script>
+const CAT_INFO = {
+  'doc':     {name:'Documents',              desc:'Letters, quotations and minutes'},
+  'sys dev': {name:'System development',     desc:'JPJKK and e-PeKAT'},
+  'pm':      {name:'Preventive maintenance', desc:'Planned site maintenance'},
+  'cm':      {name:'Corrective maintenance', desc:'Repairs and fixes'}
+};
+const STATUS = {
+  done: {label:'Completed',   cls:'s-done'},
+  prog: {label:'In progress', cls:'s-prog'},
+  pend: {label:'Pending',     cls:'s-pend'}
+};
+
+/* ===== Helpers ===== */
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm = s => String(s || '').trim().toLowerCase();
+const catName = c => (CAT_INFO[norm(c)] || {}).name || c || 'Other';
+
+function parseDate(s){
+  const m = String(s || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if(!m) return null;
+  let y = +m[3]; if(y < 100) y += 2000;
+  return new Date(y, +m[2] - 1, +m[1]);
+}
+const fmtDate = d => d ? d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '';
+function statusKey(s){
+  s = norm(s);
+  if(/complete|done|selesai/.test(s)) return 'done';
+  if(/progress|proses/.test(s)) return 'prog';
+  return 'pend';
+}
+
+/* ===== Data ===== */
+let TASKS = [];
+const state = {status:'all', cat:'all', owner:'all', q:'', view:'cards'};
+
+function load(){
+  $('stamp').textContent = 'Updating…';
+  Papa.parse(CSV_URL + '&_=' + Date.now(), {
+    download: true, skipEmptyLines: true,
+    complete: r => {
+      try {
+        TASKS = buildTasks(r.data);
+        if(!TASKS.length) throw new Error('No tasks found');
+        $('stamp').textContent = 'Updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+        buildFilters(); render();
+      } catch(e){ showError(e.message); }
+    },
+    error: () => showError('The sheet could not be reached.')
+  });
+}
+
+function buildTasks(rows){
+  const hi = rows.findIndex(r => r.some(c => norm(c) === 'status'));
+  if(hi < 0) throw new Error('Could not find a "Status" column in the sheet.');
+  const head = rows[hi].map(c => String(c || '').trim());
+  const find = names => head.findIndex(h => names.includes(h.toLowerCase()));
+  const C = {
+    no: find(['no','#']), date: find(['date']), item: find(['item','task']),
+    cat: find(['category']), status: find(['status']), pic: find(['pic','owner']),
+    due: find(['due date','due']), prio: find(['priority']), prog: find(['progress %','progress'])
+  };
+  const support = head.findIndex((h,i) => i > C.pic && ['pic','support'].includes(h.toLowerCase()));
+  let remark = find(['remark','remarks']);
+  if(remark < 0) remark = Math.max(C.pic, support) + 1;
+
+  const mapped = new Set(Object.values(C).concat([support]).filter(i => i >= 0));
+  const width = Math.max(head.length, ...rows.map(r => r.length));
+  const noteCols = [];
+  for(let i = remark; i < width; i++) if(!mapped.has(i)) noteCols.push(i);
+
+  const out = [];
+  rows.slice(hi + 1).forEach(r => {
+    const item = String(r[C.item] || '').trim();
+    if(!item) return;
+    const get = i => i >= 0 ? String(r[i] || '').trim() : '';
+    const notes = noteCols.map(i => {
+      const v = get(i); if(!v) return null;
+      const h = head[i];
+      const label = !h ? (i === remark + 1 ? 'Details' : 'Notes') : (parseDate(h) && !/[a-z]/i.test(h) ? 'Update ' + h : h);
+      return {label: i === remark ? 'Remark' : label, text: v, isUpdate: !!(h && parseDate(h))};
+    }).filter(Boolean);
+
+    const sk = statusKey(get(C.status));
+    const due = parseDate(get(C.due));
+    const today = new Date(); today.setHours(0,0,0,0);
+    const lastUpd = [...notes].reverse().find(n => n.isUpdate) || notes[notes.length - 1];
+
+    let pct = null;
+    if(sk === 'done') pct = 100;
+    else {
+      const direct = get(C.prog).match(/(\d{1,3})/);
+      const inText = notes.map(n => n.text).join(' ').match(/(\d{1,3})\s*%/);
+      const v = direct ? +direct[1] : (inText ? +inText[1] : null);
+      if(v != null && v <= 100) pct = v;
+    }
+    out.push({
+      no: get(C.no), item, cat: get(C.cat), sk,
+      owner: get(C.pic), support: get(support),
+      date: parseDate(get(C.date)), due, prio: get(C.prio),
+      overdue: !!(due && due < today && sk !== 'done'),
+      notes, latest: lastUpd ? lastUpd.text : '', pct
+    });
+  });
+  return out;
+}
+
+/* ===== Rendering ===== */
+function render(){
+  renderSummary(); renderAttention(); renderCats(); renderList();
+}
+
+function renderSummary(){
+  const t = TASKS.length, d = TASKS.filter(x => x.sk === 'done').length,
+        p = TASKS.filter(x => x.sk === 'prog').length, n = t - d - p;
+  $('k-total').textContent = t; $('k-done').textContent = d;
+  $('k-prog').textContent = p;  $('k-pend').textContent = n;
+  $('pct').textContent = t ? Math.round(d / t * 100) + '%' : '–';
+  const w = v => (t ? v / t * 100 : 0) + '%';
+  const s = $('bar').children;
+  s[0].style.width = w(d); s[1].style.width = w(p); s[2].style.width = w(n);
+  $('bar').setAttribute('aria-label', `${d} completed, ${p} in progress, ${n} pending out of ${t}`);
+}
+
+function renderAttention(){
+  const open = TASKS.filter(x => x.sk !== 'done' && (x.sk === 'prog' || x.overdue));
+  if(!open.length){
+    $('attn').innerHTML = '<div class="allclear" style="grid-column:1/-1">Nothing needs attention. Every task is completed.</div>';
+    return;
+  }
+  $('attn').innerHTML = open.map(x => `
+    <button type="button" class="${x.overdue ? 'late' : ''}" data-i="${TASKS.indexOf(x)}">
+      <div class="t">${esc(x.item)}</div>
+      <div class="m">${esc(catName(x.cat))}${x.owner ? ' – ' + esc(x.owner) : ''}${x.overdue ? ' – overdue' : ''}</div>
+      ${x.latest ? `<div class="n">${esc(x.latest)}</div>` : ''}
+    </button>`).join('');
+}
+
+function renderCats(){
+  const map = {};
+  TASKS.forEach(x => { const k = norm(x.cat) || 'other'; (map[k] = map[k] || {raw:x.cat, t:0, d:0}); map[k].t++; if(x.sk === 'done') map[k].d++; });
+  $('cats').innerHTML = Object.entries(map).map(([k, v]) => `
+    <div class="cat">
+      <div class="h"><span class="name">${esc(catName(v.raw))}</span><span class="frac">${v.d} of ${v.t} done</span></div>
+      <div class="track"><i style="width:${Math.round(v.d / v.t * 100)}%"></i></div>
+      <div class="desc">${esc((CAT_INFO[k] || {}).desc || '')}</div>
+    </div>`).join('');
+}
+
+function buildFilters(){
+  const st = [['all','All']].concat(Object.keys(STATUS).map(k => [k, STATUS[k].label]));
+  $('f-status').innerHTML = st.map(([k, l]) => `<button class="chip" type="button" data-s="${k}" aria-pressed="${state.status === k}">${l}</button>`).join('');
+  const cats = [...new Set(TASKS.map(x => x.cat).filter(Boolean))];
+  $('f-cat').innerHTML = [`<button class="chip" type="button" data-c="all" aria-pressed="${state.cat === 'all'}">All categories</button>`]
+    .concat(cats.map(c => `<button class="chip" type="button" data-c="${esc(c)}" aria-pressed="${state.cat === c}">${esc(catName(c))}</button>`)).join('');
+  const owners = [...new Set(TASKS.flatMap(x => [x.owner, x.support]).filter(Boolean))].sort();
+  $('owner').innerHTML = '<option value="all">All owners</option>' + owners.map(o => `<option ${state.owner === o ? 'selected' : ''}>${esc(o)}</option>`).join('');
+}
+
+function filtered(){
+  const q = norm(state.q);
+  return TASKS.filter(x =>
+    (state.status === 'all' || x.sk === state.status) &&
+    (state.cat === 'all' || x.cat === state.cat) &&
+    (state.owner === 'all' || x.owner === state.owner || x.support === state.owner) &&
+    (!q || norm([x.item, x.owner, x.support, x.cat, x.notes.map(n => n.text).join(' ')].join(' ')).includes(q))
+  );
+}
+
+function badge(x){ const s = STATUS[x.sk]; return `<span class="badge ${s.cls}">${s.label}</span>`; }
+
+function renderList(){
+  const list = filtered();
+  $('count').textContent = list.length === TASKS.length ? `Showing all ${list.length} tasks` : `Showing ${list.length} of ${TASKS.length} tasks`;
+  if(!list.length){
+    $('list').innerHTML = '<div class="state">No tasks match these filters. Clear the search or choose "All".</div>';
+    return;
+  }
+  if(state.view === 'cards'){
+    $('list').innerHTML = '<div class="grid">' + list.map(x => `
+      <button type="button" class="card" data-i="${TASKS.indexOf(x)}">
+        <div class="top"><span class="title">${esc(x.item)}</span><span class="no">#${esc(x.no)}</span></div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+          ${badge(x)}<span class="tag">${esc(catName(x.cat))}</span>
+          ${x.overdue ? '<span class="tag late">Overdue</span>' : ''}
+          ${x.prio ? `<span class="tag prio">${esc(x.prio)} priority</span>` : ''}
+        </div>
+        <div class="meta">
+          ${x.owner ? `<span>Owner: ${esc(x.owner)}${x.support ? ' with ' + esc(x.support) : ''}</span>` : ''}
+          ${x.date ? `<span>Started ${fmtDate(x.date)}</span>` : ''}
+          ${x.due ? `<span>Due ${fmtDate(x.due)}</span>` : ''}
+        </div>
+        ${x.sk === 'prog' && x.pct != null ? `<div class="pline"><div class="pbar"><i style="width:${x.pct}%"></i></div><span>${x.pct}%</span></div>` : ''}
+        ${x.latest ? `<div class="latest">${esc(x.latest)}</div>` : ''}
+      </button>`).join('') + '</div>';
+  } else {
+    const sorted = [...list].sort((a, b) => (a.date || 0) - (b.date || 0));
+    const groups = [];
+    sorted.forEach(x => {
+      const key = x.date ? fmtDate(x.date) : 'No date';
+      let g = groups.find(g => g.key === key);
+      if(!g){ g = {key, items: []}; groups.push(g); }
+      g.items.push(x);
+    });
+    $('list').innerHTML = '<div class="timeline">' + groups.map(g => `
+      <div class="tl-day"><h3>${esc(g.key)}</h3>
+        ${g.items.map(x => `
+        <button type="button" class="tl-item" data-i="${TASKS.indexOf(x)}">
+          <span class="l"><span class="t">${esc(x.item)}</span><br><span class="m">${esc(catName(x.cat))}${x.owner ? ' – ' + esc(x.owner) : ''}</span></span>
+          ${badge(x)}
+        </button>`).join('')}
+      </div>`).join('') + '</div>';
+  }
+}
+
+/* ===== Detail drawer ===== */
+let lastFocus = null;
+function openDetail(i){
+  const x = TASKS[i]; if(!x) return;
+  lastFocus = document.activeElement;
+  $('drawer').innerHTML = `
+    <button class="x" type="button" id="close">Close</button>
+    ${badge(x)}
+    <h3 id="d-title">${esc(x.item)}</h3>
+    <dl class="kv">
+      ${x.no ? `<dt>Task no.</dt><dd>${esc(x.no)}</dd>` : ''}
+      <dt>Category</dt><dd>${esc(catName(x.cat))}</dd>
+      ${x.owner ? `<dt>Owner</dt><dd>${esc(x.owner)}</dd>` : ''}
+      ${x.support ? `<dt>Support</dt><dd>${esc(x.support)}</dd>` : ''}
+      ${x.date ? `<dt>Started</dt><dd>${fmtDate(x.date)}</dd>` : ''}
+      ${x.due ? `<dt>Due</dt><dd>${fmtDate(x.due)}${x.overdue ? ' (overdue)' : ''}</dd>` : ''}
+      ${x.prio ? `<dt>Priority</dt><dd>${esc(x.prio)}</dd>` : ''}
+      ${x.pct != null ? `<dt>Progress</dt><dd>${x.pct}%</dd>` : ''}
+    </dl>
+    ${x.notes.length ? x.notes.map(n => `<div class="note"><h4>${esc(n.label)}</h4><p>${esc(n.text)}</p></div>`).join('') : '<p class="sub">No notes recorded for this task yet.</p>'}`;
+  $('overlay').classList.add('open'); $('overlay').setAttribute('aria-hidden','false');
+  $('close').focus();
+}
+function closeDetail(){
+  $('overlay').classList.remove('open'); $('overlay').setAttribute('aria-hidden','true');
+  if(lastFocus) lastFocus.focus();
+}
+
+function showError(msg){
+  $('stamp').textContent = 'Update failed';
+  const html = `<div class="state"><b>${esc(msg)}</b><br>Check that the sheet is shared as "Anyone with the link can view", then
+    <a href="#" onclick="load();return false">try again</a> or <a href="${SHEET_LINK}" target="_blank" rel="noopener">open the sheet</a>.</div>`;
+  $('attn').innerHTML = html; $('cats').innerHTML = html; $('list').innerHTML = html;
+}
+
+/* ===== Events ===== */
+$('sheet-link').href = SHEET_LINK;
+$('refresh').onclick = load;
+$('print').onclick = () => window.print();
+$('q').oninput = e => { state.q = e.target.value; renderList(); };
+$('owner').onchange = e => { state.owner = e.target.value; renderList(); };
+$('f-status').onclick = e => { const b = e.target.closest('[data-s]'); if(!b) return; state.status = b.dataset.s; buildFilters(); renderList(); };
+$('f-cat').onclick = e => { const b = e.target.closest('[data-c]'); if(!b) return; state.cat = b.dataset.c; buildFilters(); renderList(); };
+function setView(v){
+  state.view = v;
+  $('v-cards').setAttribute('aria-pressed', v === 'cards');
+  $('v-time').setAttribute('aria-pressed', v === 'time');
+  renderList();
+}
+$('v-cards').onclick = () => setView('cards');
+$('v-time').onclick  = () => setView('time');
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-i]');
+  if(b && !e.target.closest('#overlay')) openDetail(+b.dataset.i);
+  if(e.target.id === 'overlay' || e.target.id === 'close') closeDetail();
+});
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeDetail(); });
+
+load();
+setInterval(load, REFRESH_MS);
+</script>
 </body>
 </html>
