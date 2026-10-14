@@ -1,1 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open Platform System - Project Progress Dashboard</title>
+    <!-- Tailwind CSS for Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for Visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- PapaParse to parse Google Sheets CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans p-6">
 
+    <div class="max-w-7xl mx-auto space-y-6">
+        <!-- Header -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+            <div>
+                <h1 class="text-2xl font-bold text-white">Project Progress Dashboard</h1>
+                <p class="text-slate-400 text-sm mt-1">Open Platform System (Redajaya & Qinetics)</p>
+            </div>
+            <div class="mt-4 md:mt-0 flex items-center gap-3">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    ● Live Sync Active
+                </span>
+                <button onclick="loadDashboardData()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition shadow">
+                    Refresh Data
+                </button>
+            </div>
+        </div>
+
+        <!-- Metric KPI Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="bg-slate-800 p-5 rounded-xl border border-slate-700">
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Tasks / Milestones</p>
+                <h3 id="total-tasks" class="text-3xl font-extrabold text-white mt-2">--</h3>
+            </div>
+            <div class="bg-slate-800 p-5 rounded-xl border border-slate-700">
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Completed</p>
+                <h3 id="completed-tasks" class="text-3xl font-extrabold text-emerald-400 mt-2">--</h3>
+            </div>
+            <div class="bg-slate-800 p-5 rounded-xl border border-slate-700">
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">In Progress</p>
+                <h3 id="in-progress-tasks" class="text-3xl font-extrabold text-amber-400 mt-2">--</h3>
+            </div>
+            <div class="bg-slate-800 p-5 rounded-xl border border-slate-700">
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Overall Completion</p>
+                <h3 id="overall-progress" class="text-3xl font-extrabold text-blue-400 mt-2">0%</h3>
+            </div>
+        </div>
+
+        <!-- Embedded Interactive Sheet & Chart View -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Summary Chart -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 flex flex-col items-center justify-center">
+                <h2 class="text-lg font-bold text-white mb-4 self-start">Status Breakdown</h2>
+                <div class="w-64 h-64">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Embedded Live Google Sheet View -->
+            <div class="lg:col-span-2 bg-slate-800 p-6 rounded-xl border border-slate-700 flex flex-col">
+                <h2 class="text-lg font-bold text-white mb-4">Live Tracker Sheet</h2>
+                <div class="w-full flex-grow overflow-hidden rounded-lg border border-slate-700 h-[400px]">
+                    <iframe 
+                        class="w-full h-full border-0"
+                        src="https://docs.google.com/spreadsheets/d/e/2PACX-1vR_PUBLISHED_KEY/pubhtml?widget=true&amp;headers=false">
+                    </iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // REPLACE THIS WITH YOUR PUBLISHED CSV URL FROM GOOGLE SHEETS
+        const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1v.../pub?gid=0&single=true&output=csv';
+
+        let chartInstance = null;
+
+        function loadDashboardData() {
+            Papa.parse(SHEET_CSV_URL, {
+                download: true,
+                header: true,
+                complete: function(results) {
+                    processTrackerData(results.data);
+                },
+                error: function(err) {
+                    console.log("Error loading sheet CSV:", err);
+                }
+            });
+        }
+
+        function processTrackerData(data) {
+            let total = 0;
+            let completed = 0;
+            let inProgress = 0;
+            let pending = 0;
+
+            data.forEach(row => {
+                // Find status column dynamically
+                const status = (row['Status'] || row['STATUS'] || '').trim().toLowerCase();
+                if (status) {
+                    total++;
+                    if (status.includes('complete') || status.includes('done') || status.includes('seledai')) {
+                        completed++;
+                    } else if (status.includes('progress') || status.includes('dalam proses')) {
+                        inProgress++;
+                    } else {
+                        pending++;
+                    }
+                }
+            });
+
+            // Update KPIs
+            document.getElementById('total-tasks').innerText = total || '--';
+            document.getElementById('completed-tasks').innerText = completed;
+            document.getElementById('in-progress-tasks').innerText = inProgress;
+            
+            const progressPct = total > 0 ? Math.round((completed / total) * 100) : 0;
+            document.getElementById('overall-progress').innerText = `${progressPct}%`;
+
+            renderChart(completed, inProgress, pending);
+        }
+
+        function renderChart(completed, inProgress, pending) {
+            const ctx = document.getElementById('statusChart').getContext('2d');
+            
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Completed', 'In Progress', 'Pending'],
+                    datasets: [{
+                        data: [completed, inProgress, pending],
+                        backgroundColor: ['#10B981', '#F59E0B', '#64748B'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#94A3B8' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initial Load
+        window.onload = loadDashboardData;
+    </script>
+</body>
+</html>
