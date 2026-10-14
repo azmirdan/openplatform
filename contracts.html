@@ -98,6 +98,17 @@ tr.total td{font-weight:600;border-top:1px solid var(--line);border-bottom:0;pad
 .rates{display:flex;gap:24px;flex-wrap:wrap;color:var(--ink-soft);font-size:13.5px;margin-bottom:6px}
 .rates b{color:var(--ink);font-weight:600}
 
+/* Claim summary table */
+.sumtbl td.first,.sumtbl th.first{text-align:left}
+.sumtbl td{vertical-align:top}
+.years{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+.mini{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.mini i.t{display:block;width:72px;height:6px;border-radius:3px;background:var(--pend-soft);overflow:hidden}
+.mini i.t b{display:block;height:100%;background:var(--brand)}
+tr.sub td{color:var(--ink-soft)}
+tr.grand td{font-weight:700;background:var(--brand-soft);border-bottom:0}
+.wide{grid-column:1/-1}
+
 /* States */
 .state{background:var(--surface);border:1px dashed #B8C3D1;border-radius:var(--radius);padding:28px;text-align:center;color:var(--ink-soft)}
 .state a{color:var(--brand)}
@@ -147,7 +158,7 @@ footer a{color:var(--brand)}
 <div class="health">
   <div class="wrap">
     <div class="big">
-      <div class="lbl">Total claim (mandays plus PM and CM)</div>
+      <div class="lbl">Claimed to date (excluding SST)</div>
       <div class="num" id="grand">–</div>
     </div>
     <div class="util" id="util"><div class="skeleton" style="height:70px"></div></div>
@@ -163,8 +174,14 @@ footer a{color:var(--brand)}
   </section>
 
   <section>
+    <h2>Claim summary</h2>
+    <p class="sub">Contract value includes SST. Claimed amounts exclude SST. All amounts are in Ringgit Malaysia (RM).</p>
+    <div id="summary"><div class="skeleton"></div></div>
+  </section>
+
+  <section>
     <h2>Claim statements</h2>
-    <p class="sub">Amounts in Ringgit Malaysia (RM).</p>
+    <p class="sub">The detail behind each claim, in RM.</p>
     <div class="stm" id="stm"><div class="skeleton"></div><div class="skeleton"></div></div>
   </section>
 
@@ -239,60 +256,133 @@ function renderContracts(list){
 }
 
 /* ===== Claims (Total Tuntutan tab) ===== */
+const isNum = s => { s = String(s == null ? '' : s).trim(); return s !== '' && /\d/.test(s) && /^[\s\-+.,\d%]*$/.test(s.replace(/RM/gi, '')); };
+const fmtAmt = s => { const v = num(s); return v == null ? String(s || '') : v.toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+const cellOf = r => i => i >= 0 ? String(r[i] == null ? '' : r[i]).trim() : '';
+
+function splitClaims(rows){
+  const mi = rows.findIndex(r => r.some(c => /^perkara$/i.test(String(c || '').trim())));
+  let ds = rows.findIndex((r, i) => i > mi && r.some(c => /^jumlah tuntutan/i.test(String(c || '').trim())));
+  if(ds < 0) ds = mi >= 0 ? rows.length : 0;
+  return {head: mi >= 0 ? rows[mi].map(c => String(c || '').trim()) : null,
+          master: mi >= 0 ? rows.slice(mi + 1, ds) : [], detail: rows.slice(ds)};
+}
+
+function buildSummary(head, rows){
+  if(!head) return {list:[], grand:null};
+  const idx = re => head.findIndex(h => re.test(h));
+  const C = {no:idx(/^no$/i), total:idx(/jumlah \(rm\)/i), claim:idx(/claim semasa/i), pct:idx(/percentage/i), baki:idx(/^baki$/i)};
+  const yearCols = head.map((h, i) => /^20\d\d$/.test(h) ? i : -1).filter(i => i >= 0);
+  const list = []; let grand = null;
+  rows.forEach(r => {
+    const cell = cellOf(r);
+    const label = [1,2,3,4].map(cell).find(v => v && !isNum(v));
+    if(!label) return;
+    const rec = {label, total:cell(C.total), claim:cell(C.claim), pct:cell(C.pct), baki:cell(C.baki),
+                 years: yearCols.map(i => ({y:head[i], v:cell(i)})).filter(y => y.v)};
+    if(/^jumlah keseluruhan/i.test(label)){ rec.kind = 'grand'; grand = rec; }
+    else if(isNum(cell(C.no))) rec.kind = 'item';
+    else rec.kind = 'sub';
+    list.push(rec);
+  });
+  return {list, grand};
+}
+
+function pctOf(x){
+  const p = num(x.pct);
+  if(p != null) return Math.max(0, Math.min(100, p));
+  const t = num(x.total), c = num(x.claim);
+  return t && c != null ? Math.max(0, Math.min(100, c / t * 100)) : 0;
+}
+const pctText = x => x.pct || (pctOf(x).toFixed(2) + '%');
+
+function renderSummary(sum){
+  const g = sum.grand;
+  $('grand').innerHTML = g && g.claim ? `<small>RM</small>${esc(fmtAmt(g.claim))}` : '–';
+  if(g){
+    const p = pctOf(g);
+    $('util').innerHTML = `
+      <h2>Overall claim progress</h2>
+      <p class="sub" style="margin:0">${esc(pctText(g))} of the contract value has been claimed.</p>
+      <div class="bar" role="img" aria-label="${esc(pctText(g))} claimed"><span class="b-used" style="width:${p}%"></span></div>
+      <div class="legend">
+        <div><span class="dot" style="background:var(--brand)"></span><b>RM ${esc(fmtAmt(g.claim))}</b> claimed</div>
+        <div><span class="dot" style="background:#B8C3D1"></span><b>RM ${esc(fmtAmt(g.baki))}</b> balance</div>
+        <div><span class="dot" style="background:var(--ink)"></span><b>RM ${esc(fmtAmt(g.total))}</b> contract value</div>
+      </div>`;
+  } else { $('util').innerHTML = ''; }
+
+  if(!sum.list.length){ $('summary').innerHTML = '<div class="state">No claim summary found in the Total Tuntutan tab.</div>'; return; }
+  const body = sum.list.map(x => {
+    if(x.kind === 'sub') return `<tr class="sub"><td class="first">${esc(x.label)}</td><td>${esc(fmtAmt(x.total))}</td><td></td><td></td><td></td></tr>`;
+    const yrs = x.years.length > 1 ? `<span class="years">${x.years.map(y => esc(y.y) + ': ' + esc(fmtAmt(y.v))).join('  |  ')}</span>` : '';
+    return `<tr class="${x.kind === 'grand' ? 'grand' : ''}">
+      <td class="first">${esc(x.label)}${yrs}</td>
+      <td>${esc(fmtAmt(x.total))}</td><td>${esc(fmtAmt(x.claim))}</td>
+      <td><div class="mini"><i class="t"><b style="width:${pctOf(x)}%"></b></i><span>${esc(pctText(x))}</span></div></td>
+      <td>${esc(fmtAmt(x.baki))}</td></tr>`;
+  }).join('');
+  $('summary').innerHTML = `<div class="panel" style="padding-bottom:0"><table class="sumtbl">
+    <thead><tr><th class="first">Item</th><th>Contract value</th><th>Claimed</th><th>Progress</th><th>Balance</th></tr></thead>
+    <tbody>${body}</tbody></table></div>`;
+}
+
 function buildClaims(rows){
   const blocks = []; let cur = null;
   const flush = () => { if(cur && (cur.rows.length || cur.params.length)) blocks.push(cur); cur = null; };
+  const fresh = title => ({title, params:[], rows:[], qtyLabel:'', amtLabel:''});
   rows.forEach(r => {
-    const cell = i => String(r[i] || '').trim();
-    const label = cell(3), q = cell(4), a = cell(5), note = cell(6);
-    if(!r.some(c => String(c || '').trim())){ flush(); return; }
-    if(!cur) cur = {title:'', params:[], rows:[], qtyLabel:'', amtLabel:''};
-    if(!label){ if(q || a){ cur.qtyLabel = q; cur.amtLabel = a; } return; }
-    if(!q && !a){ if(!cur.title && !cur.rows.length) cur.title = label; else cur.rows.push({label, note}); return; }
-    if(q && !a && num(q) != null && !cur.rows.length){ cur.params.push({label, value:num(q)}); return; }
-    cur.rows.push({label, qty:q, amt:a, note, total:/^(total|baki|jumlah)/i.test(label)});
+    const cell = cellOf(r);
+    const any = r.some(c => String(c || '').trim());
+    if(!any) return;
+    if(!cur) cur = fresh('');
+    const hasNum = r.some(c => isNum(c));
+    if(!cell(3) && !hasNum){ cur.qtyLabel = cell(4); cur.amtLabel = cell(5); return; }   // column header row
+    const li = [3,4].find(i => cell(i) && !isNum(cell(i)));
+    if(li == null) return;
+    const label = cell(li), q = li === 3 ? cell(4) : '', a5 = cell(5), a6 = cell(6);
+    const noteIdx = r.findIndex((c, i) => i >= 7 && String(c || '').trim());
+    const note = noteIdx >= 0 ? cell(noteIdx) : '';
+    if(!q && !a5 && !a6){ flush(); cur = fresh(label); return; }                        // section title
+    if(q && !a5 && !a6 && isNum(q) && !cur.rows.length){ cur.params.push({label, value:num(q)}); return; }
+    cur.rows.push({label, qty:q, a5, a6, note, total:/^(total|baki|jumlah)/i.test(label)});
   });
   flush();
   return blocks;
 }
 
 function renderClaims(blocks){
-  const all = blocks.flatMap(b => b.rows);
-  const params = blocks.flatMap(b => b.params);
-  const grand = all.find(r => /total claim/i.test(r.label));
-  $('grand').innerHTML = grand ? `<small>RM</small>${esc(grand.amt)}` : '–';
-
-  // Mandays utilisation
+  const all = blocks.flatMap(b => b.rows), params = blocks.flatMap(b => b.params);
   const total = (params.find(p => /unit mandays|jumlah mandays/i.test(p.label)) || {}).value;
   const rate  = (params.find(p => /per unit/i.test(p.label)) || {}).value;
   const used  = num((all.find(r => /^total mandays/i.test(r.label)) || {}).qty);
-  const baki  = num((all.find(r => /^baki/i.test(r.label)) || {}).qty);
+  const baki  = num((all.find(r => /^baki mandays/i.test(r.label)) || {}).qty);
+  let mand = '';
   if(total && used != null){
     const pct = Math.min(100, used / total * 100);
-    $('util').innerHTML = `
-      <h2>Mandays used</h2>
+    mand = `<div class="panel wide">
+      <h3>Mandays used</h3>
       <p class="sub" style="margin:0">${Math.round(pct)}% of the contracted mandays have been claimed.</p>
       <div class="bar" role="img" aria-label="${used} of ${total} mandays used"><span class="b-used" style="width:${pct}%"></span></div>
-      <div class="legend">
+      <div class="legend" style="margin-bottom:14px">
         <div><span class="dot" style="background:var(--brand)"></span><b>${used}</b> used</div>
         <div><span class="dot" style="background:#B8C3D1"></span><b>${baki != null ? baki : total - used}</b> remaining</div>
         <div><span class="dot" style="background:var(--ink)"></span><b>${total}</b> contracted</div>
         ${rate ? `<div>Rate: <b>RM ${rate.toLocaleString('en-MY')}</b> per manday</div>` : ''}
-      </div>`;
-  } else { $('util').innerHTML = ''; }
-
-  // Statement tables (skip the grand total and "baki" blocks; they appear above)
-  const shown = blocks.filter(b => b.rows.length && !b.rows.every(r => /total claim|^baki/i.test(r.label)));
-  if(!shown.length){ $('stm').innerHTML = '<div class="state" style="grid-column:1/-1">No claim data found in the Total Tuntutan tab.</div>'; return; }
-  $('stm').innerHTML = shown.map(b => {
-    const rows = b.rows.filter(r => !/total claim|^baki/i.test(r.label));
-    const hasQty = rows.some(r => r.qty);
-    const rates = b.params.length ? `<div class="rates">${b.params.map(p => `<span>${esc(p.label)}: <b>${p.value.toLocaleString('en-MY')}</b></span>`).join('')}</div>` : '';
+      </div></div>`;
+  }
+  const shown = blocks.filter(b => b.rows.length);
+  if(!shown.length && !mand){ $('stm').innerHTML = '<div class="state" style="grid-column:1/-1">No claim details found in the Total Tuntutan tab.</div>'; return; }
+  $('stm').innerHTML = mand + shown.map(b => {
+    const rows = b.rows;
+    const hasQty = rows.some(r => r.qty), has5 = rows.some(r => r.a5), has6 = rows.some(r => r.a6);
+    const l5 = b.amtLabel || (has6 ? 'Service fee (RM)' : 'Amount (RM)');
+    const money = v => v ? esc(fmtAmt(v)) : '';
     return `<div class="panel">
-      <h3>${esc(b.title || 'Additional claims')}</h3>${rates}
+      <h3>${esc(b.title || 'Additional claims')}</h3>
       <table>
-        <thead><tr><th>Item</th>${hasQty ? `<th>${esc(b.qtyLabel || 'Qty')}</th>` : ''}<th>${esc(b.amtLabel || 'Amount (RM)')}</th></tr></thead>
-        <tbody>${rows.map(r => `<tr class="${r.total ? 'total' : ''}"><td>${esc(r.label)}${r.note ? `<small>${esc(r.note)}</small>` : ''}</td>${hasQty ? `<td>${esc(r.qty || '')}</td>` : ''}<td>${esc(r.amt || '')}</td></tr>`).join('')}</tbody>
+        <thead><tr><th>Item</th>${hasQty ? `<th>${esc(b.qtyLabel || 'Qty')}</th>` : ''}${has5 ? `<th>${esc(l5)}</th>` : ''}${has6 ? '<th>Spare parts (RM)</th>' : ''}</tr></thead>
+        <tbody>${rows.map(r => `<tr class="${r.total ? 'total' : ''}"><td>${esc(r.label)}${r.note ? `<small>${esc(r.note)}</small>` : ''}</td>${hasQty ? `<td>${esc(r.qty)}</td>` : ''}${has5 ? `<td>${money(r.a5)}</td>` : ''}${has6 ? `<td>${money(r.a6)}</td>` : ''}</tr>`).join('')}</tbody>
       </table>
     </div>`;
   }).join('');
@@ -310,8 +400,12 @@ async function load(){
   let ok = true;
   try { if(co.status !== 'fulfilled') throw new Error('The Reminder tab could not be reached.'); renderContracts(buildContracts(co.value)); }
   catch(e){ ok = false; showError($('cos'), e.message); }
-  try { if(cl.status !== 'fulfilled') throw new Error('The Total Tuntutan tab could not be reached.'); renderClaims(buildClaims(cl.value)); }
-  catch(e){ ok = false; showError($('stm'), e.message); $('util').innerHTML = ''; }
+  try {
+    if(cl.status !== 'fulfilled') throw new Error('The Total Tuntutan tab could not be reached.');
+    const parts = splitClaims(cl.value);
+    renderSummary(buildSummary(parts.head, parts.master));
+    renderClaims(buildClaims(parts.detail));
+  } catch(e){ ok = false; showError($('summary'), e.message); showError($('stm'), e.message); $('util').innerHTML = ''; }
   $('stamp').textContent = ok ? 'Updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : 'Update failed';
 }
 
