@@ -4,18 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Contracts and Claims – Open Platform System</title>
+<link rel="icon" type="image/png" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
 <style>
 :root{
-  --ink:#12263F; --ink-soft:#4A5B70; --muted:#7A889A;
-  --paper:#F3F5F8; --surface:#FFFFFF; --line:#DDE3EA; --line-soft:#EBEFF4;
-  --brand:#1F5FBF; --brand-soft:#E8F0FB;
-  --done:#1E8E5A; --done-soft:#E3F4EB;
-  --prog:#B96A00; --prog-soft:#FFF1DB;
-  --pend:#64748B; --pend-soft:#EAEEF3;
+  --ink:#1C1C1C; --ink-soft:#4B4A45; --muted:#87857C;
+  --paper:#F6F5F2; --surface:#FFFFFF; --line:#E3E1DA; --line-soft:#EFEDE8;
+  --brand:#F27229; --brand-ink:#B34A0A; --brand-soft:#FDEBDD; --grey:#ACAA9E;
+  --done:#2E7D4F; --done-soft:#E6F2EA;
+  --prog:#B34A0A; --prog-soft:#FDEBDD;
+  --pend:#6E6B60; --pend-soft:#EEECE6;
   --late:#B42318; --late-soft:#FDE8E6;
   --radius:8px;
 }
@@ -26,21 +27,24 @@ button{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 .wrap{max-width:1180px;margin:0 auto;padding:0 20px}
 
-/* Top bar and tabs */
-.topbar{background:var(--ink);color:#fff}
-.topbar .wrap.head{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;padding-top:22px;padding-bottom:10px}
-.topbar h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em}
-.topbar p{margin:2px 0 0;color:#B7C5D8;font-size:14px}
+/* Top bar */
+.topbar{background:var(--surface);border-top:5px solid var(--brand);border-bottom:1px solid var(--line)}
+.topbar .wrap.head{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;padding-top:16px;padding-bottom:8px}
+.brand{display:flex;align-items:center;gap:16px;min-width:0}
+.brand img{height:60px;width:auto;display:block;flex:0 0 auto}
+.brand .co{font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
+.topbar h1{margin:1px 0 0;font-size:22px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
+.topbar p{margin:2px 0 0;color:var(--muted);font-size:14px}
 .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.stamp{color:#B7C5D8;font-size:13px}
-.btn{border:1px solid rgba(255,255,255,.35);background:transparent;color:#fff;border-radius:6px;padding:8px 14px;cursor:pointer;font-weight:500;font-size:14px}
-.btn:hover{background:rgba(255,255,255,.1)}
-.btn.primary{background:#fff;color:var(--ink);border-color:#fff}
-.btn.primary:hover{background:#E8EEF6}
+.stamp{color:var(--muted);font-size:13px}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;padding:8px 14px;cursor:pointer;font-weight:500;font-size:14px}
+.btn:hover{border-color:var(--grey);background:var(--paper)}
+.btn.primary{background:var(--brand);border-color:var(--brand-ink);color:var(--ink);font-weight:600}
+.btn.primary:hover{background:#E0651F;border-color:#E0651F}
 .tabs{display:flex;gap:4px;overflow-x:auto}
-.tabs a{color:#B7C5D8;text-decoration:none;padding:12px 16px;border-bottom:3px solid transparent;font-weight:500;font-size:14.5px;white-space:nowrap}
-.tabs a:hover{color:#fff}
-.tabs a[aria-current="page"]{color:#fff;border-bottom-color:#fff}
+.tabs a{color:var(--ink-soft);text-decoration:none;padding:12px 16px;border-bottom:3px solid transparent;font-weight:500;font-size:14.5px;white-space:nowrap}
+.tabs a:hover{color:var(--ink)}
+.tabs a[aria-current="page"]{color:var(--ink);border-bottom-color:var(--brand-ink);font-weight:600}
 
 /* Summary band */
 .health{background:var(--surface);border-bottom:1px solid var(--line)}
@@ -119,7 +123,7 @@ tr.grand td{font-weight:700;background:var(--brand-soft);border-bottom:0}
 .tile .bar{height:6px;margin-top:10px}
 details.more{margin-bottom:34px}
 details.more>summary{cursor:pointer;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 16px;font-weight:600;font-size:15px}
-details.more>summary:hover{border-color:#B8C3D1}
+details.more>summary:hover{border-color:#CFCCC2}
 details.more[open]>summary{margin-bottom:14px}
 
 /* Current claim strip */
@@ -153,14 +157,19 @@ details.more[open]>summary{margin-bottom:14px}
 .is{color:var(--ink-soft);font-size:13px}
 .is b{color:var(--ink);font-weight:600}
 
+.cv{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px;align-items:start}
+.pie .donut{flex-direction:column;align-items:stretch;gap:14px}
+.pie svg{align-self:center}
+@media (max-width:900px){.cv{grid-template-columns:1fr}}
+
 /* States */
-.state{background:var(--surface);border:1px dashed #B8C3D1;border-radius:var(--radius);padding:28px;text-align:center;color:var(--ink-soft)}
-.state a{color:var(--brand)}
-.skeleton{height:120px;border-radius:var(--radius);background:linear-gradient(90deg,#E8ECF1 25%,#F3F5F8 50%,#E8ECF1 75%);background-size:200% 100%;animation:sh 1.3s infinite}
+.state{background:var(--surface);border:1px dashed #CFCCC2;border-radius:var(--radius);padding:28px;text-align:center;color:var(--ink-soft)}
+.state a{color:var(--brand-ink)}
+.skeleton{height:120px;border-radius:var(--radius);background:linear-gradient(90deg,#ECEAE4 25%,#F6F5F2 50%,#ECEAE4 75%);background-size:200% 100%;animation:sh 1.3s infinite}
 @keyframes sh{to{background-position:-200% 0}}
 
 footer{color:var(--muted);font-size:13px;text-align:center;padding:0 20px 36px}
-footer a{color:var(--brand)}
+footer a{color:var(--brand-ink)}
 
 @media (max-width:760px){
   .health .wrap{grid-template-columns:1fr;gap:20px}
@@ -181,9 +190,13 @@ footer a{color:var(--brand)}
 
 <header class="topbar">
   <div class="wrap head">
-    <div>
-      <h1>Contracts and Claims</h1>
-      <p>Open Platform System – Redajaya &amp; Qinetics</p>
+    <div class="brand">
+      <img src="logo.png" alt="Redajaya Sdn Bhd" width="62" height="60">
+      <div>
+        <div class="co">Redajaya Sdn Bhd</div>
+        <h1>Contracts and Claims</h1>
+        <p>Open Platform System – Redajaya &amp; Qinetics</p>
+      </div>
     </div>
     <div class="actions">
       <span class="stamp" id="stamp">Loading data…</span>
@@ -219,20 +232,17 @@ footer a{color:var(--brand)}
 
   <section>
     <h2>Current claim</h2>
-    <p class="sub">How much has been claimed so far (excluding SST), item by item. Figures come from the Claim Summary in your sheet.</p>
+    <p class="sub">How much has been claimed so far (excluding SST), item by item. Figures come from the Claim Summary.</p>
     <div id="current"><div class="skeleton"></div></div>
   </section>
 
   <section>
     <h2>Contract value</h2>
     <p class="sub">What the contract covers, with the yearly split. All amounts are in Ringgit Malaysia (RM).</p>
-    <div id="summary"><div class="skeleton"></div></div>
-  </section>
-
-  <section>
-    <h2>Charts</h2>
-    <p class="sub">Pie charts of the contract value and of what has been claimed, plus claimed against balance for each item.</p>
-    <div class="charts" id="charts"><div class="skeleton"></div><div class="skeleton"></div></div>
+    <div class="cv">
+      <div id="summary"><div class="skeleton"></div></div>
+      <div class="chart pie" id="pie"><div class="skeleton"></div></div>
+    </div>
   </section>
 
   <details class="more" id="more">
@@ -314,7 +324,7 @@ function renderContracts(list){
 const isNum = s => { s = String(s == null ? '' : s).trim(); return s !== '' && /\d/.test(s) && /^[\s\-+.,\d%]*$/.test(s.replace(/RM/gi, '')); };
 const fmtAmt = s => { const v = typeof s === 'number' ? s : num(s); return v == null ? String(s || '') : v.toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2}); };
 const cellOf = r => i => i >= 0 ? String(r[i] == null ? '' : r[i]).trim() : '';
-const COLORS = ['#1F5FBF','#12263F','#3E9AA8','#B96A00','#6B7FD7','#1E8E5A','#9A3B7A','#7A889A'];
+const COLORS = ['#F27229','#1C1C1C','#ACAA9E','#B34A0A','#6E6B60','#F8B98C','#8C8A80','#D9D6CC'];
 const key = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
 /* Contract value table (tab "Jumlah Kontrak"): item, yearly split, total */
@@ -423,12 +433,6 @@ function renderClaims(blocks){
   }).join('');
 }
 
-/* Colour for an item, the same in every chart (matched by name, in Jumlah Kontrak order) */
-function colorFor(name, sum, fallbackIdx){
-  const order = sum.list.filter(x => x.kind === 'item').map(x => key(x.label));
-  const i = order.indexOf(key(name));
-  return COLORS[(i >= 0 ? i : fallbackIdx) % COLORS.length];
-}
 const pctNum = (x, claim, baki) => { const p = num(x.pct); return p != null ? Math.max(0, Math.min(100, p)) : (claim + baki ? claim / (claim + baki) * 100 : 0); };
 
 /* Hero, "Current claim" figures and the Claim Summary table */
@@ -453,7 +457,7 @@ function renderCurrent(cs, sum, blocks){
     <div class="bar" role="img" aria-label="${esc(pTxt)} claimed"><span class="b-used" style="width:${p}%"></span></div>
     <div class="legend">
       <div><span class="dot" style="background:var(--brand)"></span><b>RM ${esc(fmtAmt(claimed))}</b> claimed</div>
-      <div><span class="dot" style="background:#B8C3D1"></span><b>RM ${esc(fmtAmt(baki))}</b> balance</div>
+      <div><span class="dot" style="background:#CFCCC2"></span><b>RM ${esc(fmtAmt(baki))}</b> balance</div>
       <div><span class="dot" style="background:var(--ink)"></span><b>RM ${esc(fmtAmt(contract))}</b> contract value</div>
     </div>`;
 
@@ -477,16 +481,15 @@ function renderCurrent(cs, sum, blocks){
       <div><div class="n">Current claim</div><div class="v"><small>RM</small>${esc(fmtAmt(claimed))}</div><div class="s">Total claimed to date, excluding SST</div></div>
       <div><div class="n">Percentage claimed</div><div class="v">${esc(pTxt)}</div><div class="s">of RM ${esc(fmtAmt(contract))} contract value${scope}</div></div>
       <div><div class="n">Balance</div><div class="v"><small>RM</small>${esc(fmtAmt(baki))}</div><div class="s">still to claim</div></div>
-    </div><div class="bar" role="img" aria-label="${esc(pTxt)} claimed"><span class="b-used" style="width:${p}%"></span></div></div>
+    </div></div>
     <div class="panel" style="margin-top:14px;padding-bottom:0"><table class="sumtbl">
       <thead><tr><th class="first">Item</th><th>Claimed (RM)</th><th>Progress</th><th>Balance (RM)</th></tr></thead>
       <tbody>${rows}${totalRow}</tbody></table></div>${mand}`;
 }
 
-/* ===== Charts (plain SVG, no library needed) ===== */
-function chartSVG(parts, top, sub){
-  const pie = top == null;
-  const R = pie ? 50 : 72, W = pie ? 100 : 30, CIRC = 2 * Math.PI * R;
+/* ===== Contract value pie chart (plain SVG, no library needed) ===== */
+function pieSVG(parts){
+  const R = 50, W = 100, CIRC = 2 * Math.PI * R;
   const live = parts.filter(p => p.v > 0), tot = live.reduce((a, p) => a + p.v, 0);
   if(!tot) return '<p class="sub">Nothing to show yet.</p>';
   let off = 0;
@@ -495,45 +498,16 @@ function chartSVG(parts, top, sub){
     const c = `<circle cx="100" cy="100" r="${R}" fill="none" stroke="${p.color}" stroke-width="${W}" stroke-dasharray="${Math.max(len - gap, 0.1)} ${CIRC - len + gap}" stroke-dashoffset="${-off}"><title>${esc(p.label)}: RM ${esc(fmtAmt(p.v))} (${(p.v / tot * 100).toFixed(1)}%)</title></circle>`;
     off += len; return c;
   }).join('');
-  const text = pie ? '' : `<text x="100" y="99" text-anchor="middle" font-size="22" font-weight="700" fill="#12263F">${esc(top)}</text>
-    <text x="100" y="118" text-anchor="middle" font-size="11" fill="#7A889A">${esc(sub)}</text>`;
-  return `<svg viewBox="0 0 200 200" width="210" height="210" role="img" aria-label="${esc(pie ? 'Pie chart' : top + ' ' + sub)}"><g transform="rotate(-90 100 100)">${arcs}</g>${text}</svg>`;
+  return `<svg viewBox="0 0 200 200" width="230" height="230" role="img" aria-label="Pie chart of the contract value by item"><g transform="rotate(-90 100 100)">${arcs}</g></svg>`;
 }
 
-function legend(rows, total){
-  return `<ul class="lg">${rows.map(r => `<li><i style="background:${r.color}"></i><span>${esc(r.label)}</span><span class="a">RM ${esc(fmtAmt(r.v))}<small>${total ? (r.v / total * 100).toFixed(1) + '%' : ''}</small></span></li>`).join('')}</ul>`;
-}
-
-function renderCharts(cs, sum){
-  const cards = [];
-  const contractItems = sum.list.filter(x => x.kind === 'item' && num(x.total)).map((x, i) => ({label:x.label, v:num(x.total), color:COLORS[i % COLORS.length]}));
-  if(cs && cs.items.length){
-    const ci = cs.items.map((x, i) => ({label:x.label, v:x.claim, color:colorFor(x.label, sum, i)}));
-    const totalClaim = ci.reduce((a, r) => a + r.v, 0);
-    cards.push(`<div class="chart"><h3>Claimed by item</h3><p class="sub">Each item's share of everything claimed so far.</p>
-      <div class="donut">${chartSVG(ci)}${legend(ci, totalClaim)}</div></div>`);
-  }
-  if(contractItems.length){
-    const totalValue = contractItems.reduce((a, r) => a + r.v, 0);
-    cards.push(`<div class="chart"><h3>Contract value by item</h3><p class="sub">Each item's share of the contract value, before SST.</p>
-      <div class="donut">${chartSVG(contractItems)}${legend(contractItems, totalValue)}</div></div>`);
-  }
-  if(cs && cs.items.length){
-    const t = cs.total;
-    const claimed = t ? t.claim : cs.items.reduce((a, i) => a + i.claim, 0);
-    const baki = t ? t.baki : cs.items.reduce((a, i) => a + i.baki, 0);
-    const p = t ? pctNum(t, claimed, baki) : pctNum({}, claimed, baki);
-    const parts = [{v:claimed, color:'#1F5FBF', label:'Claimed'}, {v:baki, color:'#B8C3D1', label:'Balance'}];
-    cards.push(`<div class="chart"><h3>Claimed and balance</h3><p class="sub">Everything claimed so far compared with what is left.</p>
-      <div class="donut">${chartSVG(parts, ((t && t.pct) ? t.pct : p.toFixed(2) + '%'), 'claimed')}${legend(parts, claimed + baki)}</div></div>`);
-    cards.push(`<div class="chart wide"><h3>Each item: claimed and balance</h3><p class="sub">The solid part is claimed. The faded part is the balance.</p>
-      ${cs.items.map((x, i) => { const pc = pctNum(x, x.claim, x.baki), col = colorFor(x.label, sum, i);
-        return `<div class="ib"><div class="ih"><span>${esc(x.label)}</span><span class="am">${esc(x.pct || pc.toFixed(2) + '%')} claimed</span></div>
-          <div class="ibar" role="img" aria-label="${pc.toFixed(2)}% claimed"><span style="width:${pc}%;background:${col}"></span><span style="width:${100 - pc}%;background:${col};opacity:.22"></span></div>
-          <div class="is">Claimed <b>RM ${esc(fmtAmt(x.claim))}</b> &nbsp;|&nbsp; Balance <b>RM ${esc(fmtAmt(x.baki))}</b></div></div>`; }).join('')}
-    </div>`);
-  }
-  $('charts').innerHTML = cards.length ? cards.join('') : '<div class="state" style="grid-column:1/-1">No data to chart yet. Check the Jumlah Kontrak and Summary Tuntutan tabs.</div>';
+function renderPie(sum){
+  const items = sum.list.filter(x => x.kind === 'item' && num(x.total)).map((x, i) => ({label:x.label, v:num(x.total), color:COLORS[i % COLORS.length]}));
+  if(!items.length){ $('pie').innerHTML = '<h3>Contract value by item</h3><p class="sub">No contract items found in the Jumlah Kontrak tab.</p>'; return; }
+  const total = items.reduce((a, r) => a + r.v, 0);
+  const rows = items.map(r => `<li><i style="background:${r.color}"></i><span>${esc(r.label)}</span><span class="a">RM ${esc(fmtAmt(r.v))}<small>${(r.v / total * 100).toFixed(1)}%</small></span></li>`).join('');
+  $('pie').innerHTML = `<h3>Contract value by item</h3><p class="sub">Each item's share of the contract value, before SST.</p>
+    <div class="donut">${pieSVG(items)}<ul class="lg">${rows}</ul></div>`;
 }
 
 /* ===== Load ===== */
@@ -552,18 +526,17 @@ async function load(){
   guard(['cos'], () => renderContracts(buildContracts(rowsOf(co, 'Reminder'))));
 
   let sum = {list:[], grand:null, exSst:null, years:[]};
-  guard(['summary'], () => {
+  guard(['summary', 'pie'], () => {
     sum = buildSummary(rowsOf(jk, 'Jumlah Kontrak'));
     if(!sum.list.length && st.status === 'fulfilled') sum = buildSummary(st.value);   // fallback: copy in Summary Tuntutan
-    renderSummary(sum);
+    renderSummary(sum); renderPie(sum);
   });
 
   let cs = null, blocks = [];
-  guard(['current', 'charts'], () => { cs = buildClaimSummary(rowsOf(st, 'Summary Tuntutan')); });
+  guard(['current'], () => { cs = buildClaimSummary(rowsOf(st, 'Summary Tuntutan')); });
   guard(['stm'], () => { blocks = buildClaims(splitDetails(rowsOf(tt, 'Total Tuntutan'))); renderClaims(blocks); });
   if(ok || cs){
     guard(['current'], () => renderCurrent(cs, sum, blocks));
-    guard(['charts'], () => renderCharts(cs, sum));
   } else { $('util').innerHTML = ''; }
 
   $('stamp').textContent = ok ? 'Updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : 'Update failed';
