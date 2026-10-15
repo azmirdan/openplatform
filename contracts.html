@@ -373,7 +373,11 @@ function buildClaimSummary(rows){
   if(hi < 0) return null;
   const head = rows[hi].map(c => String(c || '').trim());
   const idx = re => head.findIndex(h => re.test(h));
-  const C = {no:idx(/^no$/i), item:idx(/^(perkara|item)$/i), claim:idx(/claim/i), pct:idx(/percentage/i), baki:idx(/^(baki|balance)/i)};
+  const C = {no:idx(/^no$/i), item:idx(/^(perkara|item)$/i), claim:-1, pct:idx(/percentage/i), baki:idx(/^(baki|balance)/i)};
+  // The claim column is the one headed "...claim...", but never the sheet's own title ("Claim Summary (Claimed to Date)"),
+  // which can get merged into the first header cell. In every layout it sits just left of the percentage column.
+  const cand = head.findIndex(h => /claim/i.test(h) && !/summary|to date/i.test(h));
+  C.claim = cand >= 0 ? cand : (C.pct > 0 ? C.pct - 1 : -1);
   const items = []; let total = null;
   for(let i = hi + 1; i < rows.length; i++){
     const r = rows[i], cell = cellOf(r);
