@@ -238,7 +238,7 @@ footer a{color:var(--brand-ink)}
 
   <section>
     <h2>Contract value</h2>
-    <p class="sub">What the contract covers, with the yearly split. All amounts are in Ringgit Malaysia (RM).</p>
+    <p class="sub">What the contract covers, item by item. All amounts are in Ringgit Malaysia (RM).</p>
     <div class="cv">
       <div id="summary"><div class="skeleton"></div></div>
       <div class="chart pie" id="pie"><div class="skeleton"></div></div>
@@ -329,11 +329,14 @@ const key = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(
 
 /* Contract value table (tab "Jumlah Kontrak"): item, yearly split, total */
 function buildSummary(rows){
-  const hi = rows.findIndex(r => r.some(c => /^perkara$/i.test(String(c || '').trim())) && r.some(c => /jumlah \(rm\)/i.test(String(c || '').trim())));
+  const isItemHead = c => /^(perkara|item)$/i.test(String(c || '').trim());
+  const isAmtHead  = c => /\(rm\)|^jumlah|^total/i.test(String(c || '').trim());
+  const hi = rows.findIndex(r => r.some(isItemHead) && r.some(isAmtHead));
   if(hi < 0) return {list:[], grand:null, exSst:null, years:[]};
   const head = rows[hi].map(c => String(c || '').trim());
   const idx = re => head.findIndex(h => re.test(h));
-  const C = {no:idx(/^no$/i), total:idx(/jumlah \(rm\)/i)};
+  const itemCol = head.findIndex(isItemHead);
+  const C = {no:idx(/^no$/i), total:head.findIndex((h, i) => i > itemCol && isAmtHead(h))};
   const yearCols = head.map((h, i) => /^20\d\d$/.test(h) ? i : -1).filter(i => i >= 0);
   const labelEnd = C.total > 0 ? C.total : head.length;
   const list = []; let grand = null, exSst = null;
@@ -342,8 +345,8 @@ function buildSummary(rows){
     let label = '';
     for(let i = 0; i < labelEnd; i++){ const v = cell(i); if(v && !isNum(v)){ label = v; break; } }
     if(!label) return;
-    const rec = {label, total:cell(C.total), yv:yearCols.map(i => cell(i))};
-    if(/^jumlah keseluruhan/i.test(label)){ rec.kind = 'grand'; grand = rec; }
+    const rec = {label, total:cell(C.total), yv:yearCols.map(i => cell(i)), excl:/tanpa sst|without sst|excluding sst|excl\.? sst/i.test(label)};
+    if(/^jumlah keseluruhan|^grand total|^overall total/i.test(label)){ rec.kind = 'grand'; grand = rec; }
     else if(isNum(cell(C.no))) rec.kind = 'item';
     else rec.kind = 'sub';
     if(/tanpa sst/i.test(label)) exSst = rec;
@@ -366,11 +369,11 @@ function renderSummary(sum){
 
 /* Claim Summary (tab "Summary Tuntutan"): claimed, percentage and balance per item */
 function buildClaimSummary(rows){
-  const hi = rows.findIndex(r => r.some(c => /claim semasa/i.test(String(c || ''))));
+  const hi = rows.findIndex(r => r.some(c => /claim/i.test(String(c || ''))) && r.some(c => /percentage|balance|baki/i.test(String(c || ''))));
   if(hi < 0) return null;
   const head = rows[hi].map(c => String(c || '').trim());
   const idx = re => head.findIndex(h => re.test(h));
-  const C = {no:idx(/^no$/i), item:idx(/^perkara$/i), claim:idx(/claim semasa/i), pct:idx(/percentage/i), baki:idx(/^baki$/i)};
+  const C = {no:idx(/^no$/i), item:idx(/^(perkara|item)$/i), claim:idx(/claim/i), pct:idx(/percentage/i), baki:idx(/^(baki|balance)/i)};
   const items = []; let total = null;
   for(let i = hi + 1; i < rows.length; i++){
     const r = rows[i], cell = cellOf(r);
@@ -433,22 +436,23 @@ function renderClaims(blocks){
   }).join('');
 }
 
-const pctNum = (x, claim, baki) => { const p = num(x.pct); return p != null ? Math.max(0, Math.min(100, p)) : (claim + baki ? claim / (claim + baki) * 100 : 0); };
+const pctNum = (x, claim, baki) => { if(claim + baki > 0) return Math.max(0, Math.min(100, claim / (claim + baki) * 100)); const p = num(x.pct); return p != null ? Math.max(0, Math.min(100, p)) : 0; };
+const pctTxt = (x, claim, baki) => pctNum(x, claim, baki).toFixed(2) + '%';
 
 /* Hero, "Current claim" figures and the Claim Summary table */
 function renderCurrent(cs, sum, blocks){
   if(!cs || !cs.items.length){
     $('grand').textContent = '–'; $('util').innerHTML = '';
-    $('current').innerHTML = '<div class="state">No Claim Summary found in the Summary Tuntutan tab yet.</div>';
+    $('current').innerHTML = '<div class="state">No Claim Summary found in the Summary Tuntutan tab. It needs a header row with an item column plus "Total claim" and "Balance" columns.</div>';
     return;
   }
   const t = cs.total;
   const claimed = t ? t.claim : cs.items.reduce((a, i) => a + i.claim, 0);
   const baki = t ? t.baki : cs.items.reduce((a, i) => a + i.baki, 0);
   const p = t ? pctNum(t, claimed, baki) : pctNum({}, claimed, baki);
-  const pTxt = (t && t.pct) ? t.pct : p.toFixed(2) + '%';
+  const pTxt = p.toFixed(2) + '%';
   const contract = sum.grand ? num(sum.grand.total) : claimed + baki;
-  const scope = sum.grand ? ' (including SST)' : '';
+  const scope = sum.grand ? ((sum.grand.excl || sum.exSst) ? ' (excluding SST)' : ' (including SST)') : '';
 
   $('grand').innerHTML = `<small>RM</small>${esc(fmtAmt(claimed))}`;
   $('util').innerHTML = `
@@ -463,7 +467,7 @@ function renderCurrent(cs, sum, blocks){
 
   const rows = cs.items.map(x => `<tr>
       <td class="first">${esc(x.label)}</td><td>${esc(fmtAmt(x.claim))}</td>
-      <td><div class="mini"><i class="t"><b style="width:${pctNum(x, x.claim, x.baki)}%"></b></i><span>${esc(x.pct || pctNum(x, x.claim, x.baki).toFixed(2) + '%')}</span></div></td>
+      <td><div class="mini"><i class="t"><b style="width:${pctNum(x, x.claim, x.baki)}%"></b></i><span>${esc(pctTxt(x, x.claim, x.baki))}</span></div></td>
       <td>${esc(fmtAmt(x.baki))}</td></tr>`).join('');
   const totalRow = `<tr class="grand"><td class="first">Total</td><td>${esc(fmtAmt(claimed))}</td>
       <td><div class="mini"><i class="t"><b style="width:${p}%"></b></i><span>${esc(pTxt)}</span></div></td><td>${esc(fmtAmt(baki))}</td></tr>`;
@@ -506,7 +510,7 @@ function renderPie(sum){
   if(!items.length){ $('pie').innerHTML = '<h3>Contract value by item</h3><p class="sub">No contract items found in the Jumlah Kontrak tab.</p>'; return; }
   const total = items.reduce((a, r) => a + r.v, 0);
   const rows = items.map(r => `<li><i style="background:${r.color}"></i><span>${esc(r.label)}</span><span class="a">RM ${esc(fmtAmt(r.v))}<small>${(r.v / total * 100).toFixed(1)}%</small></span></li>`).join('');
-  $('pie').innerHTML = `<h3>Contract value by item</h3><p class="sub">Each item's share of the contract value, before SST.</p>
+  $('pie').innerHTML = `<h3>Contract value by item</h3><p class="sub">Each item's share of the contract value${sum.grand && sum.grand.excl ? ', before SST' : ''}.</p>
     <div class="donut">${pieSVG(items)}<ul class="lg">${rows}</ul></div>`;
 }
 
