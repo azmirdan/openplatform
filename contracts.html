@@ -219,9 +219,8 @@ footer a{color:var(--brand)}
 
   <section>
     <h2>Current claim</h2>
-    <p class="sub">How much has been claimed so far (excluding SST) and how that compares with the contract value.</p>
+    <p class="sub">How much has been claimed so far (excluding SST), item by item. Figures come from the Claim Summary in your sheet.</p>
     <div id="current"><div class="skeleton"></div></div>
-    <div class="tiles" id="tiles" style="margin-top:14px"></div>
   </section>
 
   <section>
@@ -232,7 +231,7 @@ footer a{color:var(--brand)}
 
   <section>
     <h2>Charts</h2>
-    <p class="sub">The value of each item, and how much of it has been claimed and is still remaining.</p>
+    <p class="sub">Pie charts of the contract value and of what has been claimed, plus claimed against balance for each item.</p>
     <div class="charts" id="charts"><div class="skeleton"></div><div class="skeleton"></div></div>
   </section>
 
@@ -243,7 +242,7 @@ footer a{color:var(--brand)}
 
 </main>
 
-<footer>Data comes live from the <a id="sheet-link" href="#" target="_blank" rel="noopener">project tracker sheet</a> (Reminder and Total Tuntutan tabs).</footer>
+<footer>Data comes live from the <a id="sheet-link" href="#" target="_blank" rel="noopener">project tracker sheet</a> (Reminder, Jumlah Kontrak, Summary Tuntutan and Total Tuntutan tabs).</footer>
 
 <script>
 /* ===== Settings ===== */
@@ -311,50 +310,24 @@ function renderContracts(list){
   }).join('');
 }
 
-/* ===== Claims (Total Tuntutan tab) ===== */
+/* ===== Claims ===== */
 const isNum = s => { s = String(s == null ? '' : s).trim(); return s !== '' && /\d/.test(s) && /^[\s\-+.,\d%]*$/.test(s.replace(/RM/gi, '')); };
-const fmtAmt = s => { const v = num(s); return v == null ? String(s || '') : v.toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+const fmtAmt = s => { const v = typeof s === 'number' ? s : num(s); return v == null ? String(s || '') : v.toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2}); };
 const cellOf = r => i => i >= 0 ? String(r[i] == null ? '' : r[i]).trim() : '';
 const COLORS = ['#1F5FBF','#12263F','#3E9AA8','#B96A00','#6B7FD7','#1E8E5A','#9A3B7A','#7A889A'];
+const key = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
-/* Which "Total ..." line in the claim details belongs to which contract item.
-   Edit these if you rename items in the sheet. */
-const CLAIM_MAP = [
-  {item:/preventive|\bpm\b/i,                 paid:/^total pm/i},
-  {item:/corrective.*perkakasan|cm.*perkakasan/i, paid:/^total fee/i},
-  {item:/mandays/i,                           paid:/^total mandays/i},
-  {item:/alat ganti|spare/i,                  paid:/^total alat ganti/i}
-];
-
-/* The sheet has two tables side by side: contract value on the left, claim details on the right. */
-function splitClaims(rows){
-  const hi = rows.findIndex(r => r.some(c => /^perkara$/i.test(String(c || '').trim())));
-  const head = hi >= 0 ? rows[hi].map(c => String(c || '').trim()) : null;
-  let ds = -1, L0 = -1;
-  rows.forEach((r, i) => {
-    if(ds >= 0) return;
-    const j = r.findIndex(c => /^jumlah tuntutan/i.test(String(c || '').trim()));
-    if(j >= 0){ ds = i; L0 = j; }
-  });
-  const stacked = ds > hi && hi >= 0 && L0 <= (head ? head.length : 0);   // old layout: details below the table
-  const leftEnd = L0 >= 0 && !stacked ? L0 : undefined;
-  return {
-    head,
-    master: hi >= 0 ? rows.slice(hi + 1, stacked ? ds : undefined).map(r => r.slice(0, leftEnd)) : [],
-    detail: ds >= 0 ? rows.slice(ds).map(r => r.slice(stacked ? 0 : L0)) : [],
-    labelCol: stacked ? Math.max(0, L0) : 0
-  };
-}
-
-/* Contract value table (item, yearly split, total) */
-function buildSummary(head, rows){
-  if(!head) return {list:[], grand:null, exSst:null, years:[]};
+/* Contract value table (tab "Jumlah Kontrak"): item, yearly split, total */
+function buildSummary(rows){
+  const hi = rows.findIndex(r => r.some(c => /^perkara$/i.test(String(c || '').trim())) && r.some(c => /jumlah \(rm\)/i.test(String(c || '').trim())));
+  if(hi < 0) return {list:[], grand:null, exSst:null, years:[]};
+  const head = rows[hi].map(c => String(c || '').trim());
   const idx = re => head.findIndex(h => re.test(h));
   const C = {no:idx(/^no$/i), total:idx(/jumlah \(rm\)/i)};
   const yearCols = head.map((h, i) => /^20\d\d$/.test(h) ? i : -1).filter(i => i >= 0);
   const labelEnd = C.total > 0 ? C.total : head.length;
   const list = []; let grand = null, exSst = null;
-  rows.forEach(r => {
+  rows.slice(hi + 1).forEach(r => {
     const cell = cellOf(r);
     let label = '';
     for(let i = 0; i < labelEnd; i++){ const v = cell(i); if(v && !isNum(v)){ label = v; break; } }
@@ -371,19 +344,46 @@ function buildSummary(head, rows){
 }
 
 function renderSummary(sum){
-  if(!sum.list.length){ $('summary').innerHTML = '<div class="state">No contract value table found in the Total Tuntutan tab.</div>'; return; }
+  if(!sum.list.length){ $('summary').innerHTML = '<div class="state">No contract value table found in the Jumlah Kontrak tab.</div>'; return; }
   const yh = sum.years.map(y => `<th>${esc(y.y)}</th>`).join('');
   const body = sum.list.map(x => {
-    const yc = sum.years.map(y => x.kind === 'sub' ? '<td></td>' : `<td>${esc(fmtAmt(x.yv[y.k]))}</td>`).join('');
+    const yc = sum.years.map(y => x.kind === 'sub' ? '<td></td>' : `<td>${x.yv[y.k] ? esc(fmtAmt(x.yv[y.k])) : '<span style="color:var(--muted)">–</span>'}</td>`).join('');
     return `<tr class="${x.kind === 'grand' ? 'grand' : x.kind === 'sub' ? 'sub' : ''}"><td class="first">${esc(x.label)}</td>${yc}<td>${esc(fmtAmt(x.total))}</td></tr>`;
   }).join('');
   $('summary').innerHTML = `<div class="panel" style="padding-bottom:0"><table class="sumtbl">
     <thead><tr><th class="first">Item</th>${yh}<th>Total (RM)</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
-/* Claim details */
-function buildClaims(rows, L0){
-  const blocks = []; let cur = null;
+/* Claim Summary (tab "Summary Tuntutan"): claimed, percentage and balance per item */
+function buildClaimSummary(rows){
+  const hi = rows.findIndex(r => r.some(c => /claim semasa/i.test(String(c || ''))));
+  if(hi < 0) return null;
+  const head = rows[hi].map(c => String(c || '').trim());
+  const idx = re => head.findIndex(h => re.test(h));
+  const C = {no:idx(/^no$/i), item:idx(/^perkara$/i), claim:idx(/claim semasa/i), pct:idx(/percentage/i), baki:idx(/^baki$/i)};
+  const items = []; let total = null;
+  for(let i = hi + 1; i < rows.length; i++){
+    const r = rows[i], cell = cellOf(r);
+    if(!r.some(c => String(c || '').trim())) break;
+    const rec = {no:cell(C.no), label:cell(C.item), claim:num(cell(C.claim)) || 0, pct:cell(C.pct), baki:num(cell(C.baki)) || 0};
+    if(rec.label) items.push(rec); else total = rec;
+  }
+  return {items, total};
+}
+
+/* Claim details (tab "Total Tuntutan"): the statements behind the claims */
+function splitDetails(rows){
+  let ds = -1, L0 = 0;
+  rows.forEach((r, i) => {
+    if(ds >= 0) return;
+    const j = r.findIndex(c => /^jumlah tuntutan/i.test(String(c || '').trim()));
+    if(j >= 0){ ds = i; L0 = j; }
+  });
+  return ds < 0 ? [] : rows.slice(ds).map(r => r.slice(L0));
+}
+
+function buildClaims(rows){
+  const L0 = 0, blocks = []; let cur = null;
   const flush = () => { if(cur && (cur.rows.length || cur.params.length)) blocks.push(cur); cur = null; };
   const fresh = title => ({title, params:[], rows:[], qtyLabel:'', amtLabel:''});
   rows.forEach(r => {
@@ -423,110 +423,117 @@ function renderClaims(blocks){
   }).join('');
 }
 
-/* Work out what has been claimed, in total and for each contract item */
-function computeClaims(sum, blocks){
-  const all = blocks.flatMap(b => b.rows), params = blocks.flatMap(b => b.params);
-  const totals = all.filter(r => /^total\b/i.test(r.label)).map(r => ({label:r.label, v:num(r.a5 || r.a6), qty:r.qty})).filter(t => t.v != null);
-  const items = sum.list.filter(x => x.kind === 'item').map((x, i) => ({name:x.label, total:num(x.total) || 0, claimed:0, color:COLORS[i % COLORS.length]}));
-  totals.forEach(t => {
-    const m = CLAIM_MAP.find(m => m.paid.test(t.label));
-    t.item = m ? items.find(i => m.item.test(i.name)) : null;
-    if(t.item) t.item.claimed += t.v;
-  });
-  items.forEach(i => { i.remaining = Math.max(0, i.total - i.claimed); });
-  const ref = sum.exSst || sum.grand;
-  return {totals, items, params, claimed: totals.reduce((a, t) => a + t.v, 0), contract: ref ? num(ref.total) : null, exSst: !!sum.exSst};
+/* Colour for an item, the same in every chart (matched by name, in Jumlah Kontrak order) */
+function colorFor(name, sum, fallbackIdx){
+  const order = sum.list.filter(x => x.kind === 'item').map(x => key(x.label));
+  const i = order.indexOf(key(name));
+  return COLORS[(i >= 0 ? i : fallbackIdx) % COLORS.length];
 }
+const pctNum = (x, claim, baki) => { const p = num(x.pct); return p != null ? Math.max(0, Math.min(100, p)) : (claim + baki ? claim / (claim + baki) * 100 : 0); };
 
-const TILE_NAMES = [[/mandays/i,'Mandays'], [/\bpm\b|preventive/i,'Preventive maintenance (PM)'], [/fee|senggaraan|penyelenggaraan/i,'Corrective maintenance fee (CM)'], [/alat ganti|spare/i,'Spare parts']];
-const tileName = l => (TILE_NAMES.find(([re]) => re.test(l)) || [0, l.replace(/^total\s+/i, '')])[1];
-
-function renderCurrent(d){
-  if(!d.totals.length){
+/* Hero, "Current claim" figures and the Claim Summary table */
+function renderCurrent(cs, sum, blocks){
+  if(!cs || !cs.items.length){
     $('grand').textContent = '–'; $('util').innerHTML = '';
-    $('current').innerHTML = '<div class="state">No "Total" lines found in the claim details yet.</div>'; $('tiles').innerHTML = '';
+    $('current').innerHTML = '<div class="state">No Claim Summary found in the Summary Tuntutan tab yet.</div>';
     return;
   }
-  const claimed = d.claimed, contract = d.contract;
-  const p = contract ? Math.max(0, Math.min(100, claimed / contract * 100)) : null;
-  const left = contract ? Math.max(0, contract - claimed) : null;
-  $('grand').innerHTML = `<small>RM</small>${esc(fmtAmt(claimed))}`;
-  const scope = d.exSst ? ' (excluding SST)' : '';
+  const t = cs.total;
+  const claimed = t ? t.claim : cs.items.reduce((a, i) => a + i.claim, 0);
+  const baki = t ? t.baki : cs.items.reduce((a, i) => a + i.baki, 0);
+  const p = t ? pctNum(t, claimed, baki) : pctNum({}, claimed, baki);
+  const pTxt = (t && t.pct) ? t.pct : p.toFixed(2) + '%';
+  const contract = sum.grand ? num(sum.grand.total) : claimed + baki;
+  const scope = sum.grand ? ' (including SST)' : '';
 
-  $('util').innerHTML = p == null ? '' : `
+  $('grand').innerHTML = `<small>RM</small>${esc(fmtAmt(claimed))}`;
+  $('util').innerHTML = `
     <h2>Overall claim progress</h2>
-    <p class="sub" style="margin:0">${p.toFixed(2)}% of the contract value${scope} has been claimed.</p>
-    <div class="bar" role="img" aria-label="${p.toFixed(2)}% claimed"><span class="b-used" style="width:${p}%"></span></div>
+    <p class="sub" style="margin:0">${esc(pTxt)} of the total contract value${scope} has been claimed.</p>
+    <div class="bar" role="img" aria-label="${esc(pTxt)} claimed"><span class="b-used" style="width:${p}%"></span></div>
     <div class="legend">
       <div><span class="dot" style="background:var(--brand)"></span><b>RM ${esc(fmtAmt(claimed))}</b> claimed</div>
-      <div><span class="dot" style="background:#B8C3D1"></span><b>RM ${esc(fmtAmt(left))}</b> still to claim</div>
+      <div><span class="dot" style="background:#B8C3D1"></span><b>RM ${esc(fmtAmt(baki))}</b> balance</div>
       <div><span class="dot" style="background:var(--ink)"></span><b>RM ${esc(fmtAmt(contract))}</b> contract value</div>
     </div>`;
 
-  $('current').innerHTML = `<div class="cc">
-    <div class="row3">
-      <div><div class="n">Current claim</div><div class="v"><small>RM</small>${esc(fmtAmt(claimed))}</div><div class="s">Total claimed to date, excluding SST</div></div>
-      ${p == null ? '' : `<div><div class="n">Percentage claimed</div><div class="v">${p.toFixed(2)}%</div><div class="s">of RM ${esc(fmtAmt(contract))} contract value${scope}</div></div>
-      <div><div class="n">Still to claim</div><div class="v"><small>RM</small>${esc(fmtAmt(left))}</div><div class="s">${(100 - p).toFixed(2)}% remaining</div></div>`}
-    </div>
-    ${p == null ? '' : `<div class="bar" role="img" aria-label="${p.toFixed(2)}% claimed"><span class="b-used" style="width:${p}%"></span></div>`}
-  </div>`;
+  const rows = cs.items.map(x => `<tr>
+      <td class="first">${esc(x.label)}</td><td>${esc(fmtAmt(x.claim))}</td>
+      <td><div class="mini"><i class="t"><b style="width:${pctNum(x, x.claim, x.baki)}%"></b></i><span>${esc(x.pct || pctNum(x, x.claim, x.baki).toFixed(2) + '%')}</span></div></td>
+      <td>${esc(fmtAmt(x.baki))}</td></tr>`).join('');
+  const totalRow = `<tr class="grand"><td class="first">Total</td><td>${esc(fmtAmt(claimed))}</td>
+      <td><div class="mini"><i class="t"><b style="width:${p}%"></b></i><span>${esc(pTxt)}</span></div></td><td>${esc(fmtAmt(baki))}</td></tr>`;
 
-  const mTotal = (d.params.find(x => /unit mandays|jumlah mandays/i.test(x.label)) || {}).value;
-  $('tiles').innerHTML = d.totals.map(t => {
-    let extra = '';
-    if(/mandays/i.test(t.label) && mTotal && num(t.qty) != null){
-      const used = num(t.qty), pct = Math.min(100, used / mTotal * 100);
-      extra = `<div class="s">${used} of ${mTotal.toLocaleString('en-MY')} mandays used</div><div class="bar" role="img" aria-label="${used} of ${mTotal} mandays used"><span class="b-used" style="width:${pct}%"></span></div>`;
-    } else if(t.item && t.item.total){
-      extra = `<div class="s">${(t.v / t.item.total * 100).toFixed(2)}% of this item's RM ${esc(fmtAmt(t.item.total))}</div>`;
-    }
-    return `<div class="tile"><div class="n">${esc(tileName(t.label))}</div><div class="v"><small>RM</small>${esc(fmtAmt(t.v))}</div>${extra}</div>`;
-  }).join('');
+  const params = blocks.flatMap(b => b.params), all = blocks.flatMap(b => b.rows);
+  const mTotal = (params.find(x => /unit mandays|jumlah mandays/i.test(x.label)) || {}).value;
+  const used = num((all.find(r => /^total mandays/i.test(r.label)) || {}).qty);
+  const mand = mTotal && used != null ? `<div class="cc" style="margin-top:14px">
+      <div class="n">Mandays used</div>
+      <div class="v" style="font-size:22px">${used} <span style="font-size:15px;font-weight:500;color:var(--ink-soft)">of ${mTotal.toLocaleString('en-MY')} mandays</span></div>
+      <div class="bar" role="img" aria-label="${used} of ${mTotal} mandays used"><span class="b-used" style="width:${Math.min(100, used / mTotal * 100)}%"></span></div></div>` : '';
+
+  $('current').innerHTML = `
+    <div class="cc"><div class="row3">
+      <div><div class="n">Current claim</div><div class="v"><small>RM</small>${esc(fmtAmt(claimed))}</div><div class="s">Total claimed to date, excluding SST</div></div>
+      <div><div class="n">Percentage claimed</div><div class="v">${esc(pTxt)}</div><div class="s">of RM ${esc(fmtAmt(contract))} contract value${scope}</div></div>
+      <div><div class="n">Balance</div><div class="v"><small>RM</small>${esc(fmtAmt(baki))}</div><div class="s">still to claim</div></div>
+    </div><div class="bar" role="img" aria-label="${esc(pTxt)} claimed"><span class="b-used" style="width:${p}%"></span></div></div>
+    <div class="panel" style="margin-top:14px;padding-bottom:0"><table class="sumtbl">
+      <thead><tr><th class="first">Item</th><th>Claimed (RM)</th><th>Progress</th><th>Balance (RM)</th></tr></thead>
+      <tbody>${rows}${totalRow}</tbody></table></div>${mand}`;
 }
 
 /* ===== Charts (plain SVG, no library needed) ===== */
-function donutSVG(parts, top, sub){
-  const R = 72, W = 30, CIRC = 2 * Math.PI * R;
+function chartSVG(parts, top, sub){
+  const pie = top == null;
+  const R = pie ? 50 : 72, W = pie ? 100 : 30, CIRC = 2 * Math.PI * R;
   const live = parts.filter(p => p.v > 0), tot = live.reduce((a, p) => a + p.v, 0);
-  if(!tot) return '';
+  if(!tot) return '<p class="sub">Nothing to show yet.</p>';
   let off = 0;
   const arcs = live.map(p => {
-    const len = p.v / tot * CIRC, gap = live.length > 1 ? 1.2 : 0;
-    const c = `<circle cx="100" cy="100" r="${R}" fill="none" stroke="${p.color}" stroke-width="${W}" stroke-dasharray="${Math.max(len - gap, 0.1)} ${CIRC - len + gap}" stroke-dashoffset="${-off}"><title>${esc(p.label)}: RM ${esc(fmtAmt(p.v))}</title></circle>`;
+    const len = p.v / tot * CIRC, gap = live.length > 1 ? 1.4 : 0;
+    const c = `<circle cx="100" cy="100" r="${R}" fill="none" stroke="${p.color}" stroke-width="${W}" stroke-dasharray="${Math.max(len - gap, 0.1)} ${CIRC - len + gap}" stroke-dashoffset="${-off}"><title>${esc(p.label)}: RM ${esc(fmtAmt(p.v))} (${(p.v / tot * 100).toFixed(1)}%)</title></circle>`;
     off += len; return c;
   }).join('');
-  return `<svg viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="${esc(top + ' ' + sub)}">
-    <g transform="rotate(-90 100 100)">${arcs}</g>
-    <text x="100" y="99" text-anchor="middle" font-size="22" font-weight="700" fill="#12263F">${esc(top)}</text>
-    <text x="100" y="118" text-anchor="middle" font-size="11" fill="#7A889A">${esc(sub)}</text></svg>`;
+  const text = pie ? '' : `<text x="100" y="99" text-anchor="middle" font-size="22" font-weight="700" fill="#12263F">${esc(top)}</text>
+    <text x="100" y="118" text-anchor="middle" font-size="11" fill="#7A889A">${esc(sub)}</text>`;
+  return `<svg viewBox="0 0 200 200" width="210" height="210" role="img" aria-label="${esc(pie ? 'Pie chart' : top + ' ' + sub)}"><g transform="rotate(-90 100 100)">${arcs}</g>${text}</svg>`;
 }
 
-function renderCharts(d){
-  const items = d.items.filter(i => i.total > 0);
-  if(!items.length){ $('charts').innerHTML = '<div class="state" style="grid-column:1/-1">No contract items found to chart.</div>'; return; }
-  const totalValue = items.reduce((a, i) => a + i.total, 0);
+function legend(rows, total){
+  return `<ul class="lg">${rows.map(r => `<li><i style="background:${r.color}"></i><span>${esc(r.label)}</span><span class="a">RM ${esc(fmtAmt(r.v))}<small>${total ? (r.v / total * 100).toFixed(1) + '%' : ''}</small></span></li>`).join('')}</ul>`;
+}
 
-  const c1 = `<div class="chart"><h3>Contract value by item</h3><p class="sub">Each item's share of the total, excluding SST.</p>
-    <div class="donut">${donutSVG(items.map(i => ({v:i.total, color:i.color, label:i.name})), 'RM ' + (totalValue / 1e6).toFixed(2) + 'M', 'contract value')}
-    <ul class="lg">${items.map(i => `<li><i style="background:${i.color}"></i><span>${esc(i.name)}</span><span class="a">RM ${esc(fmtAmt(i.total))}<small>${(i.total / totalValue * 100).toFixed(1)}%</small></span></li>`).join('')}</ul></div></div>`;
-
-  const claimed = items.reduce((a, i) => a + i.claimed, 0), remaining = items.reduce((a, i) => a + i.remaining, 0);
-  const pc = claimed + remaining ? claimed / (claimed + remaining) * 100 : 0;
-  const c2 = `<div class="chart"><h3>Claimed and remaining</h3><p class="sub">Everything claimed so far compared with what is left.</p>
-    <div class="donut">${donutSVG([{v:claimed, color:'#1F5FBF', label:'Claimed'}, {v:remaining, color:'#B8C3D1', label:'Remaining'}], pc.toFixed(2) + '%', 'claimed')}
-    <ul class="lg">
-      <li><i style="background:#1F5FBF"></i><span>Claimed</span><span class="a">RM ${esc(fmtAmt(claimed))}<small>${pc.toFixed(2)}%</small></span></li>
-      <li><i style="background:#B8C3D1"></i><span>Remaining</span><span class="a">RM ${esc(fmtAmt(remaining))}<small>${(100 - pc).toFixed(2)}%</small></span></li>
-    </ul></div></div>`;
-
-  const c3 = `<div class="chart wide"><h3>Each item: claimed and remaining</h3><p class="sub">The solid part is what has been claimed. The faded part is still remaining.</p>
-    ${items.map(i => { const p = Math.min(100, i.claimed / i.total * 100);
-      return `<div class="ib"><div class="ih"><span>${esc(i.name)}</span><span class="am">RM ${esc(fmtAmt(i.total))}</span></div>
-        <div class="ibar" role="img" aria-label="${p.toFixed(2)}% claimed"><span style="width:${p}%;background:${i.color}"></span><span style="width:${100 - p}%;background:${i.color};opacity:.22"></span></div>
-        <div class="is">Claimed <b>RM ${esc(fmtAmt(i.claimed))}</b> (${p.toFixed(2)}%) &nbsp;|&nbsp; Remaining <b>RM ${esc(fmtAmt(i.remaining))}</b></div></div>`; }).join('')}
-  </div>`;
-  $('charts').innerHTML = c1 + c2 + c3;
+function renderCharts(cs, sum){
+  const cards = [];
+  const contractItems = sum.list.filter(x => x.kind === 'item' && num(x.total)).map((x, i) => ({label:x.label, v:num(x.total), color:COLORS[i % COLORS.length]}));
+  if(cs && cs.items.length){
+    const ci = cs.items.map((x, i) => ({label:x.label, v:x.claim, color:colorFor(x.label, sum, i)}));
+    const totalClaim = ci.reduce((a, r) => a + r.v, 0);
+    cards.push(`<div class="chart"><h3>Claimed by item</h3><p class="sub">Each item's share of everything claimed so far.</p>
+      <div class="donut">${chartSVG(ci)}${legend(ci, totalClaim)}</div></div>`);
+  }
+  if(contractItems.length){
+    const totalValue = contractItems.reduce((a, r) => a + r.v, 0);
+    cards.push(`<div class="chart"><h3>Contract value by item</h3><p class="sub">Each item's share of the contract value, before SST.</p>
+      <div class="donut">${chartSVG(contractItems)}${legend(contractItems, totalValue)}</div></div>`);
+  }
+  if(cs && cs.items.length){
+    const t = cs.total;
+    const claimed = t ? t.claim : cs.items.reduce((a, i) => a + i.claim, 0);
+    const baki = t ? t.baki : cs.items.reduce((a, i) => a + i.baki, 0);
+    const p = t ? pctNum(t, claimed, baki) : pctNum({}, claimed, baki);
+    const parts = [{v:claimed, color:'#1F5FBF', label:'Claimed'}, {v:baki, color:'#B8C3D1', label:'Balance'}];
+    cards.push(`<div class="chart"><h3>Claimed and balance</h3><p class="sub">Everything claimed so far compared with what is left.</p>
+      <div class="donut">${chartSVG(parts, ((t && t.pct) ? t.pct : p.toFixed(2) + '%'), 'claimed')}${legend(parts, claimed + baki)}</div></div>`);
+    cards.push(`<div class="chart wide"><h3>Each item: claimed and balance</h3><p class="sub">The solid part is claimed. The faded part is the balance.</p>
+      ${cs.items.map((x, i) => { const pc = pctNum(x, x.claim, x.baki), col = colorFor(x.label, sum, i);
+        return `<div class="ib"><div class="ih"><span>${esc(x.label)}</span><span class="am">${esc(x.pct || pc.toFixed(2) + '%')} claimed</span></div>
+          <div class="ibar" role="img" aria-label="${pc.toFixed(2)}% claimed"><span style="width:${pc}%;background:${col}"></span><span style="width:${100 - pc}%;background:${col};opacity:.22"></span></div>
+          <div class="is">Claimed <b>RM ${esc(fmtAmt(x.claim))}</b> &nbsp;|&nbsp; Balance <b>RM ${esc(fmtAmt(x.baki))}</b></div></div>`; }).join('')}
+    </div>`);
+  }
+  $('charts').innerHTML = cards.length ? cards.join('') : '<div class="state" style="grid-column:1/-1">No data to chart yet. Check the Jumlah Kontrak and Summary Tuntutan tabs.</div>';
 }
 
 /* ===== Load ===== */
@@ -537,18 +544,28 @@ function showError(el, msg){
 
 async function load(){
   $('stamp').textContent = 'Updating…';
-  const [co, cl] = await Promise.allSettled([fetchTab('Reminder'), fetchTab('Total Tuntutan')]);
+  const [co, jk, st, tt] = await Promise.allSettled([fetchTab('Reminder'), fetchTab('Jumlah Kontrak'), fetchTab('Summary Tuntutan'), fetchTab('Total Tuntutan')]);
   let ok = true;
-  try { if(co.status !== 'fulfilled') throw new Error('The Reminder tab could not be reached.'); renderContracts(buildContracts(co.value)); }
-  catch(e){ ok = false; showError($('cos'), e.message); }
-  try {
-    if(cl.status !== 'fulfilled') throw new Error('The Total Tuntutan tab could not be reached.');
-    const parts = splitClaims(cl.value);
-    const sum = buildSummary(parts.head, parts.master);
-    const blocks = buildClaims(parts.detail, parts.labelCol);
-    const data = computeClaims(sum, blocks);
-    renderSummary(sum); renderCurrent(data); renderCharts(data); renderClaims(blocks);
-  } catch(e){ ok = false; ['summary','stm','tiles','current','charts'].forEach(k => showError($(k), e.message)); $('util').innerHTML = ''; }
+  const rowsOf = (r, name) => { if(r.status !== 'fulfilled') throw new Error(`The ${name} tab could not be reached.`); return r.value; };
+  const guard = (ids, fn) => { try { fn(); } catch(e){ ok = false; ids.forEach(k => showError($(k), e.message)); } };
+
+  guard(['cos'], () => renderContracts(buildContracts(rowsOf(co, 'Reminder'))));
+
+  let sum = {list:[], grand:null, exSst:null, years:[]};
+  guard(['summary'], () => {
+    sum = buildSummary(rowsOf(jk, 'Jumlah Kontrak'));
+    if(!sum.list.length && st.status === 'fulfilled') sum = buildSummary(st.value);   // fallback: copy in Summary Tuntutan
+    renderSummary(sum);
+  });
+
+  let cs = null, blocks = [];
+  guard(['current', 'charts'], () => { cs = buildClaimSummary(rowsOf(st, 'Summary Tuntutan')); });
+  guard(['stm'], () => { blocks = buildClaims(splitDetails(rowsOf(tt, 'Total Tuntutan'))); renderClaims(blocks); });
+  if(ok || cs){
+    guard(['current'], () => renderCurrent(cs, sum, blocks));
+    guard(['charts'], () => renderCharts(cs, sum));
+  } else { $('util').innerHTML = ''; }
+
   $('stamp').textContent = ok ? 'Updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : 'Update failed';
 }
 
