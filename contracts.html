@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Contracts and Claims – Open Platform System</title>
 <link rel="icon" type="image/png" href="logo.png">
+<script>try{ if(sessionStorage.getItem('rj_unlock') !== '1') document.documentElement.classList.add('locked'); }catch(e){ document.documentElement.classList.add('locked'); }</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -162,6 +163,23 @@ details.more[open]>summary{margin-bottom:14px}
 .pie svg{align-self:center}
 @media (max-width:900px){.cv{grid-template-columns:1fr}}
 
+/* PIN gate */
+.gate{display:none;min-height:100vh;align-items:center;justify-content:center;padding:24px;background:var(--paper);border-top:5px solid var(--brand)}
+html.locked .gate{display:flex}
+html.locked .topbar,html.locked main,html.locked footer{display:none}
+.gate-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:32px 30px;width:min(380px,100%);text-align:center}
+.gate-card img{height:72px;width:auto;margin-bottom:10px}
+.gate-card .co{font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
+.gate-card h1{font-size:21px;font-weight:600;margin:6px 0 4px}
+.gate-card p{margin:0 0 18px;color:var(--muted);font-size:14px}
+.gate-card input{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:6px;font-size:22px;letter-spacing:.5em;text-align:center;background:var(--surface)}
+.gate-card input:focus{outline:2px solid var(--brand);outline-offset:1px}
+.gate-card button.go{width:100%;margin-top:12px;padding:11px 14px;border:0;border-radius:6px;background:var(--brand);color:var(--ink);font-weight:600;font-size:15px;cursor:pointer}
+.gate-card button.go:hover{background:#E0651F}
+.gate-card button.go:disabled{opacity:.5;cursor:not-allowed}
+.gate-msg{min-height:22px;margin-top:10px;font-size:13.5px;color:var(--late)}
+.gate-card a{display:inline-block;margin-top:8px;color:var(--brand-ink);font-size:13.5px}
+
 /* States */
 .state{background:var(--surface);border:1px dashed #CFCCC2;border-radius:var(--radius);padding:28px;text-align:center;color:var(--ink-soft)}
 .state a{color:var(--brand-ink)}
@@ -188,6 +206,19 @@ footer a{color:var(--brand-ink)}
 </head>
 <body>
 
+<div class="gate" id="gate" role="dialog" aria-modal="true" aria-labelledby="gate-title">
+  <form class="gate-card" id="gate-form" autocomplete="off">
+    <img src="logo.png" alt="Redajaya Sdn Bhd" width="75" height="72">
+    <div class="co">Redajaya Sdn Bhd</div>
+    <h1 id="gate-title">Contracts and claims</h1>
+    <p>This page is restricted. Enter your PIN to continue.</p>
+    <input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="12" aria-label="PIN" placeholder="••••">
+    <button class="go" id="pin-go" type="submit">Unlock</button>
+    <div class="gate-msg" id="gate-msg" role="alert" aria-live="polite"></div>
+    <a href="index.html">Back to project progress</a>
+  </form>
+</div>
+
 <header class="topbar">
   <div class="wrap head">
     <div class="brand">
@@ -201,6 +232,7 @@ footer a{color:var(--brand-ink)}
     <div class="actions">
       <span class="stamp" id="stamp">Loading data…</span>
       <button class="btn" id="refresh" type="button">Refresh data</button>
+      <button class="btn" id="lock" type="button">Lock page</button>
       <button class="btn primary" id="print" type="button">Print report</button>
     </div>
   </div>
@@ -554,8 +586,44 @@ window.addEventListener('beforeprint', () => { $('more').open = true; });
 $('sheet-link').href = SHEET_LINK;
 $('refresh').onclick = load;
 $('print').onclick = () => window.print();
-load();
-setInterval(load, REFRESH_MS);
+/* ===== PIN gate ===== */
+/* Only a salted hash of the PIN is stored here, never the PIN itself. */
+const PIN_SALT = 'redajaya-contracts|';
+const PIN_HASH = 'dfd12b5514c89f0aecad6c551e1036fb1ecfbb26e704c68186dd6fd9906947ec';
+const sha256 = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map(b => b.toString(16).padStart(2, '0')).join('');
+
+let started = false, fails = 0, lockedUntil = 0;
+function start(){ if(started) return; started = true; load(); setInterval(load, REFRESH_MS); }   // data is only requested after unlocking
+function unlock(){
+  document.documentElement.classList.remove('locked');
+  try { sessionStorage.setItem('rj_unlock', '1'); } catch(e){}
+  start();
+}
+const gateMsg = t => { $('gate-msg').textContent = t; };
+
+$('gate-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  if(Date.now() < lockedUntil) return;
+  const pin = $('pin').value.trim();
+  if(!pin){ gateMsg('Please enter your PIN.'); return; }
+  let ok = false;
+  try { ok = (await sha256(PIN_SALT + pin)) === PIN_HASH; }
+  catch(err){ gateMsg('This browser cannot check the PIN. Open the page over https in an up-to-date browser.'); return; }
+  if(ok){ fails = 0; gateMsg(''); $('pin').value = ''; unlock(); return; }
+  fails++; $('pin').value = ''; $('pin').focus();
+  if(fails >= 5){
+    lockedUntil = Date.now() + 30000; fails = 0; $('pin-go').disabled = true;
+    const tick = () => {
+      const s = Math.ceil((lockedUntil - Date.now()) / 1000);
+      if(s <= 0){ $('pin-go').disabled = false; gateMsg(''); return; }
+      gateMsg('Too many attempts. Try again in ' + s + ' seconds.'); setTimeout(tick, 500);
+    };
+    tick();
+  } else gateMsg('Incorrect PIN. Please try again.');
+});
+$('lock').onclick = () => { try { sessionStorage.removeItem('rj_unlock'); } catch(e){} location.reload(); };
+
+if(document.documentElement.classList.contains('locked')) $('pin').focus(); else start();
 </script>
 </body>
 </html>
